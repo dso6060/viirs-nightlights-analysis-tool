@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Methodology & Data Flow - VIIRS Nightlights Analysis Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            line-height: 1.7;
+            color: #333;
+            background: #f9f9f9;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        
+        header {
+            background: linear-gradient(135deg, #e85d00 0%, #ff7700 100%);
+            color: white;
+            padding: 40px 30px;
+            border-radius: 8px 8px 0 0;
+            margin: -20px -20px 30px -20px;
+        }
+        
+        header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            opacity: 0.95;
+            font-size: 1.1em;
+        }
+        
+        nav {
+            background: #f8f8f8;
+            padding: 15px 20px;
+            margin: -10px -20px 30px -20px;
+            border-bottom: 2px solid #e85d00;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        nav a {
+            color: #e85d00;
+            text-decoration: none;
+            margin-right: 20px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        nav a:hover {
+            text-decoration: underline;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #e85d00;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        h2 {
+            color: #e85d00;
+            font-size: 1.8em;
+            margin: 40px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #e85d00;
+        }
+        
+        h3 {
+            color: #cc5200;
+            font-size: 1.4em;
+            margin: 30px 0 12px 0;
+        }
+        
+        h4 {
+            color: #333;
+            font-size: 1.2em;
+            margin: 25px 0 10px 0;
+        }
+        
+        p {
+            margin: 12px 0;
+            color: #555;
+        }
+        
+        a {
+            color: #e85d00;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        ul, ol {
+            margin: 15px 0 15px 25px;
+            color: #555;
+        }
+        
+        li {
+            margin: 8px 0;
+        }
+        
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-left: 4px solid #e85d00;
+            overflow-x: auto;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        code {
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 0.9em;
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        
+        th {
+            background: #e85d00;
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .warning {
+            background: #fff8f0;
+            border-left: 4px solid #ff9800;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .warning h4 {
+            color: #e65100;
+            margin-top: 0;
+        }
+        
+        .info {
+            background: #e8f4f8;
+            border-left: 4px solid #2196F3;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .success {
+            background: #f1f8f4;
+            border-left: 4px solid #4caf50;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        blockquote {
+            border-left: 4px solid #ddd;
+            margin: 20px 0;
+            padding: 10px 20px;
+            background: #f9f9f9;
+            font-style: italic;
+            color: #666;
+        }
+        
+        .flow-diagram {
+            background: white;
+            border: 2px solid #e85d00;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre;
+            overflow-x: auto;
+            border-radius: 4px;
+        }
+        
+        footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 2px solid #e85d00;
+            color: #777;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        
+        @media print {
+            nav {
+                display: none;
+            }
+            
+            .back-link {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            header {
+                padding: 25px 20px;
+                margin: -10px -10px 20px -10px;
+            }
+            
+            header h1 {
+                font-size: 1.6em;
+            }
+            
+            h2 {
+                font-size: 1.5em;
+            }
+            
+            h3 {
+                font-size: 1.2em;
+            }
+            
+            table {
+                font-size: 0.8em;
+            }
+            
+            th, td {
+                padding: 8px;
+            }
+            
+            nav {
+                padding: 10px;
+                margin: -10px -10px 20px -10px;
+            }
+            
+            nav a {
+                display: block;
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📖 Methodology & Data Flow</h1>
+            <p>VIIRS Nightlights Analysis Tool - Complete Documentation</p>
+            <p style="font-size: 0.9em; opacity: 0.9; margin-top: 10px;">Version 1.0.0 • Last Updated: November 7, 2025</p>
+        </header>
+        
+        <a href="index.html" class="back-link">← Back to Analysis Tool</a>
+        
+        <nav>
+            <a href="#overview">Overview</a>
+            <a href="#data-flow">Data Flow</a>
+            <a href="#data-sources">Data Sources</a>
+            <a href="#geocoding">Geocoding</a>
+            <a href="#fetching">Data Fetching</a>
+            <a href="#aggregation">Spatial Aggregation</a>
+            <a href="#bias-correction">Bias Correction</a>
+            <a href="#limitations">Limitations</a>
+            <a href="#use-cases">Use Cases</a>
+            <a href="#attribution">Attribution</a>
+        </nav>
+
+        <div id="overview">
+            <h2>🌍 Overview</h2>
+            <p>The <strong>VIIRS Nightlights Analysis Tool</strong> processes satellite nighttime light data to track economic activity, urban development, and infrastructure changes over time (2012-2025). This document provides a complete end-to-end explanation of how the system works, from user input to final visualization.</p>
+            
+            <h3>Key Features</h3>
+            <ul>
+                <li><strong>Real-time data fetching</strong> from NOAA Earth Observation Group</li>
+                <li><strong>Automated geocoding</strong> via OpenStreetMap Nominatim</li>
+                <li><strong>Scientific bias correction</strong> using Elvidge et al. (2021) methodology</li>
+                <li><strong>Interactive visualization</strong> with Leaflet.js and D3.js</li>
+                <li><strong>Multi-city comparison</strong> capabilities</li>
+                <li><strong>Data export</strong> in Excel, CSV, and JSON formats</li>
+            </ul>
+        </div>
+
+        <div id="data-flow">
+            <h2>🔄 Complete Data Flow</h2>
+            
+            <div class="flow-diagram">
+┌─────────────────────────────────────────────────────────┐
+│                     USER INPUT                          │
+│  "Mumbai" or "19.07, 72.87" + Date Range (2019-2024)  │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 1: GEOCODING (OpenStreetMap Nominatim)           │
+│  • Convert city name → lat/lon coordinates              │
+│  • Determine appropriate analysis radius                │
+│  Output: {lat: 19.0760, lon: 72.8777, radius_km: 20}  │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 2: TILE IDENTIFICATION (NOAA EOG VIIRS)          │
+│  • Determine which global tile contains coordinates     │
+│  • Global coverage: 6 tiles                             │
+│  Output: tile_name = "75N060W"                         │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 3: AUTHENTICATION & DOWNLOAD (NOAA EOG)          │
+│  • OAuth 2.0 authentication with NOAA EOG               │
+│  • Download monthly composite GeoTIFF (.tgz archives)  │
+│  • Extract avg_rade9h.tif (radiance band)              │
+│  Output: GeoTIFF file (~50-200 MB per month)           │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 4: SPATIAL EXTRACTION (Rasterio + PyProj)        │
+│  • Open GeoTIFF with rasterio                           │
+│  • Transform coordinates → GeoTIFF projection           │
+│  • Extract square bounding box                          │
+│  Output: 2D array of radiance values                   │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 5: AGGREGATION & AVERAGING                       │
+│  • Filter invalid values                                │
+│  • Calculate mean radiance                              │
+│  Output: {radiance: 15.34, cf_cvg: 78.5}              │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 6: BIAS CORRECTION (Elvidge et al. 2021)         │
+│  • Apply correction formula                             │
+│  Output: {radiance_corrected: 16.12}                   │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  STEP 7: VISUALIZATION (Leaflet.js + D3.js)            │
+│  • Interactive map and time-series graph                │
+│  Output: Web visualization                              │
+└─────────────────────────────────────────────────────────┘
+            </div>
+        </div>
+
+        <div id="data-sources">
+            <h2>🌐 Data Sources & Credits</h2>
+            
+            <h3>Primary Data Source: NOAA Earth Observation Group (EOG)</h3>
+            <p><strong>Official Website:</strong> <a href="https://eogdata.mines.edu/nighttime_light/monthly/v10" target="_blank">https://eogdata.mines.edu/nighttime_light/monthly/v10</a></p>
+            
+            <table>
+                <tr>
+                    <th>Specification</th>
+                    <th>Details</th>
+                </tr>
+                <tr>
+                    <td>Satellite</td>
+                    <td>Suomi NPP VIIRS Day/Night Band (DNB)</td>
+                </tr>
+                <tr>
+                    <td>Sensor Resolution</td>
+                    <td>~750 meters at nadir</td>
+                </tr>
+                <tr>
+                    <td>Temporal Resolution</td>
+                    <td>Monthly composites</td>
+                </tr>
+                <tr>
+                    <td>Coverage</td>
+                    <td>Global (-65° to 75° latitude)</td>
+                </tr>
+                <tr>
+                    <td>Time Range</td>
+                    <td>January 2012 - Present</td>
+                </tr>
+                <tr>
+                    <td>Update Frequency</td>
+                    <td>Monthly (with 1-2 month lag)</td>
+                </tr>
+                <tr>
+                    <td>Data Format</td>
+                    <td>GeoTIFF (.tif files in .tgz archives)</td>
+                </tr>
+                <tr>
+                    <td>Units</td>
+                    <td>Radiance (nW/cm²/sr)</td>
+                </tr>
+            </table>
+            
+            <div class="info">
+                <h4>Citation</h4>
+                <blockquote>
+                    Earth Observation Group, Payne Institute for Public Policy, Colorado School of Mines. (2012-2025). VIIRS Nighttime Day/Night Band Composites Version 1. <a href="https://eogdata.mines.edu" target="_blank">https://eogdata.mines.edu</a>
+                </blockquote>
+            </div>
+            
+            <h3>Geocoding Service: OpenStreetMap Nominatim API</h3>
+            <p><strong>Official Website:</strong> <a href="https://nominatim.openstreetmap.org" target="_blank">https://nominatim.openstreetmap.org</a></p>
+            
+            <ul>
+                <li><strong>Data Source:</strong> OpenStreetMap (OSM) database</li>
+                <li><strong>Coverage:</strong> Global place name database</li>
+                <li><strong>Coordinate System:</strong> WGS84 (EPSG:4326)</li>
+                <li><strong>Precision:</strong> ~11 meters (4 decimal places)</li>
+                <li><strong>Rate Limit:</strong> 1 request per second (honored by this tool)</li>
+            </ul>
+            
+            <div class="info">
+                <h4>Citation</h4>
+                <blockquote>
+                    OpenStreetMap contributors. (2024). OpenStreetMap. <a href="https://www.openstreetmap.org" target="_blank">https://www.openstreetmap.org</a>
+                </blockquote>
+            </div>
+            
+            <h3>Scientific Methodology: Elvidge et al. (2021)</h3>
+            <div class="info">
+                <h4>Full Citation</h4>
+                <blockquote>
+                    Elvidge, C. D., Zhizhin, M., Ghosh, T., Hsu, F. C., & Taneja, J. (2021). "But clouds got in my way: Bias and bias correction of VIIRS nighttime lights data." <em>Remote Sensing of Environment</em>, 258, 112165.<br>
+                    DOI: <a href="https://doi.org/10.1016/j.rse.2021.112165" target="_blank">https://doi.org/10.1016/j.rse.2021.112165</a>
+                </blockquote>
+            </div>
+        </div>
+
+        <div id="geocoding">
+            <h2>🔍 STEP 1: City Geocoding</h2>
+            <p>When you enter a city name (e.g., "Mumbai" or "Berlin, Germany"), the system sends a request to the OpenStreetMap Nominatim API to convert the place name into precise coordinates.</p>
+            
+            <h3>How It Works</h3>
+            <ol>
+                <li><strong>API Request:</strong> System sends city name to Nominatim</li>
+                <li><strong>Response Processing:</strong> Receives lat/lon coordinates and place type</li>
+                <li><strong>Radius Determination:</strong> Assigns analysis radius based on city type</li>
+                <li><strong>Validation:</strong> Checks coordinates are within VIIRS coverage</li>
+            </ol>
+            
+            <h3>Radius Assignment</h3>
+            <table>
+                <tr>
+                    <th>Place Type</th>
+                    <th>Radius</th>
+                </tr>
+                <tr><td>City</td><td>15 km</td></tr>
+                <tr><td>Town</td><td>10 km</td></tr>
+                <tr><td>Village</td><td>5 km</td></tr>
+                <tr><td>Municipality</td><td>12 km</td></tr>
+                <tr><td>Administrative</td><td>20 km</td></tr>
+            </table>
+        </div>
+
+        <div id="fetching">
+            <h2>🛰️ STEP 2: VIIRS Data Fetching</h2>
+            <p>The system authenticates with NOAA EOG using OAuth 2.0, then downloads the appropriate GeoTIFF tiles for the requested time period.</p>
+            
+            <h3>Global Tile Coverage</h3>
+            <p>NOAA provides 6 global tiles covering the entire Earth:</p>
+            <table>
+                <tr>
+                    <th>Tile Name</th>
+                    <th>Latitude Range</th>
+                    <th>Longitude Range</th>
+                    <th>Coverage</th>
+                </tr>
+                <tr><td>75N180W</td><td>0° to 75°N</td><td>-180° to -60°</td><td>North America (West)</td></tr>
+                <tr><td>75N060W</td><td>0° to 75°N</td><td>-60° to 60°</td><td>Americas, Europe, Africa</td></tr>
+                <tr><td>75N060E</td><td>0° to 75°N</td><td>60° to 180°</td><td>Asia, Australia</td></tr>
+                <tr><td>00N180W</td><td>-65° to 0°</td><td>-180° to -60°</td><td>South America (West)</td></tr>
+                <tr><td>00N060W</td><td>-65° to 0°</td><td>-60° to 60°</td><td>South America, Africa</td></tr>
+                <tr><td>00N060E</td><td>-65° to 0°</td><td>60° to 180°</td><td>Southern Asia, Australia</td></tr>
+            </table>
+        </div>
+
+        <div id="aggregation">
+            <h2>📐 STEP 3: Spatial Aggregation & City Boundaries</h2>
+            
+            <div class="warning">
+                <h4>⚠️ IMPORTANT: Methodology Limitation</h4>
+                <p><strong>This is the most critical section for understanding data accuracy and appropriate use cases.</strong></p>
+            </div>
+            
+            <h3>How City Boundaries Are Defined</h3>
+            <p>Unlike GIS software that can use actual administrative boundaries, this tool uses a <strong>simplified approach</strong>:</p>
+            
+            <ol>
+                <li><strong>Fixed Circular Radius:</strong> Each city is assigned a predefined radius (e.g., Mumbai: 20 km, Tiruppur: 8 km)</li>
+                <li><strong>Square Bounding Box Extraction:</strong> Despite the "radius" being circular, data is extracted from a <strong>square box</strong></li>
+                <li><strong>Equal-Weight Averaging:</strong> All pixels within the square are averaged with equal weight</li>
+            </ol>
+            
+            <h3>Visual Representation</h3>
+            <pre>What actually gets extracted (square box):
+┌─────────────────────────┐
+│░░░░░░░░░░░░░░░░░░░░░░░░░│
+│░░░░░░░░░░░░░░░░░░░░░░░░░│
+│░░░░░░░░░░░░░░░░░░░░░░░░░│
+│░░░░░░░░░░░ ★ ░░░░░░░░░░░│   ★ = City center
+│░░░░░░░░░░░░░░░░░░░░░░░░░│   ░ = Actually extracted
+│░░░░░░░░░░░░░░░░░░░░░░░░░│
+│░░░░░░░░░░░░░░░░░░░░░░░░░│
+└─────────────────────────┘
+
+Corners include ~27% extra area!</pre>
+            
+            <h3>Pixel Counts by City Size</h3>
+            <table>
+                <tr>
+                    <th>Radius</th>
+                    <th>Square Size</th>
+                    <th>Pixel Count (~750m)</th>
+                    <th>Area Difference</th>
+                </tr>
+                <tr><td>5 km</td><td>10×10 km</td><td>~178 pixels</td><td>+27% vs circle</td></tr>
+                <tr><td>10 km</td><td>20×20 km</td><td>~711 pixels</td><td>+27% vs circle</td></tr>
+                <tr><td>15 km</td><td>30×30 km</td><td>~1,600 pixels</td><td>+27% vs circle</td></tr>
+                <tr><td>20 km</td><td>40×40 km</td><td>~2,844 pixels</td><td>+27% vs circle</td></tr>
+                <tr><td>25 km</td><td>50×50 km</td><td>~4,444 pixels</td><td>+27% vs circle</td></tr>
+            </table>
+        </div>
+
+        <div id="bias-correction">
+            <h2>🔬 STEP 4: Bias Correction</h2>
+            <p>VIIRS monthly composites are created by averaging only cloud-free observations. This tool applies the Elvidge et al. (2021) correction methodology to compensate for systematic biases introduced by cloud cover.</p>
+            
+            <h3>The Correction Formula</h3>
+            <pre>corrected_radiance = raw_radiance × (1 + α × (1 - cf_cvg/100))</pre>
+            
+            <p><strong>Where:</strong></p>
+            <ul>
+                <li><code>raw_radiance</code> = Average pixel value from GeoTIFF</li>
+                <li><code>α = 0.2</code> = Empirically determined correction coefficient</li>
+                <li><code>cf_cvg</code> = Cloud-free coverage percentage (0-100%)</li>
+            </ul>
+            
+            <h3>Example Corrections</h3>
+            <table>
+                <tr>
+                    <th>Raw Radiance</th>
+                    <th>Cloud-Free Coverage</th>
+                    <th>Correction Factor</th>
+                    <th>Corrected Radiance</th>
+                </tr>
+                <tr><td>10.0</td><td>80%</td><td>1.04</td><td>10.4</td></tr>
+                <tr><td>10.0</td><td>60%</td><td>1.08</td><td>10.8</td></tr>
+                <tr><td>10.0</td><td>40%</td><td>1.12</td><td>11.2</td></tr>
+                <tr><td>10.0</td><td>20%</td><td>1.16</td><td>11.6</td></tr>
+            </table>
+            
+            <p><strong>Interpretation:</strong> Lower cloud-free coverage → higher correction (more uncertain data).</p>
+        </div>
+
+        <div id="limitations">
+            <h2>⚠️ Accuracy & Limitations</h2>
+            
+            <h3>Spatial Accuracy</h3>
+            <table>
+                <tr>
+                    <th>Component</th>
+                    <th>Accuracy</th>
+                    <th>Issue</th>
+                </tr>
+                <tr><td>OSM Geocoding</td><td>±11 meters</td><td>High precision for city centers</td></tr>
+                <tr><td>VIIRS Resolution</td><td>~750 meters</td><td>Sensor limitation</td></tr>
+                <tr><td>Square vs Circle</td><td>+27% area</td><td>Corner pixels outside intended radius</td></tr>
+                <tr><td>Radius Approximation</td><td>±50% at 60° lat</td><td>Simple km→degree conversion</td></tr>
+                <tr><td>Pixel Count Variation</td><td>300-6,400 pixels</td><td>Small vs large cities</td></tr>
+            </table>
+            
+            <h3>Known Issues</h3>
+            <ol>
+                <li><strong>Coastal Cities:</strong> Water areas included in square extraction</li>
+                <li><strong>Linear Cities:</strong> Elongated cities (along rivers, coasts) poorly represented</li>
+                <li><strong>Industrial Corridors:</strong> Satellite industrial zones may be outside radius</li>
+                <li><strong>High Latitude:</strong> Longitude degree approximation breaks down (±50% error at 60°)</li>
+                <li><strong>No Distance Weighting:</strong> Suburban edge pixels weighted equally to urban core</li>
+                <li><strong>Administrative Boundaries:</strong> Does not follow official city limits</li>
+            </ol>
+        </div>
+
+        <div id="use-cases">
+            <h2>✅ Appropriate Use Cases</h2>
+            <div class="success">
+                <p><strong>This tool is GOOD for:</strong></p>
+                <ul>
+                    <li>Temporal trend analysis within cities</li>
+                    <li>City-to-city comparative analysis</li>
+                    <li>Economic activity monitoring</li>
+                    <li>Regional development tracking</li>
+                    <li>Policy impact assessment</li>
+                    <li>Educational demonstrations</li>
+                </ul>
+            </div>
+            
+            <h2>❌ Inappropriate Use Cases</h2>
+            <div class="error">
+                <p><strong>This tool is NOT GOOD for:</strong></p>
+                <ul>
+                    <li>Precise urban boundary mapping</li>
+                    <li>Irregular/linear city shapes (coastal cities)</li>
+                    <li>Fine spatial detail analysis</li>
+                    <li>Absolute radiance accuracy comparisons</li>
+                    <li>Dense urban core metrics</li>
+                    <li>Distance-weighted analysis</li>
+                    <li>Publication-grade research (without additional validation)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="attribution">
+            <h2>📄 License & Attribution</h2>
+            
+            <h3>This Tool</h3>
+            <p><strong>License:</strong> MIT License</p>
+            <p>Copyright © 2025 VIIRS Nightlights Analysis Tool</p>
+            
+            <h3>When Using This Tool or Its Data, Please Cite:</h3>
+            <ol>
+                <li><strong>VIIRS Data:</strong> Earth Observation Group, Payne Institute for Public Policy, Colorado School of Mines. VIIRS Nighttime Day/Night Band Composites Version 1. https://eogdata.mines.edu</li>
+                <li><strong>Bias Correction:</strong> Elvidge, C. D., et al. (2021). "But clouds got in my way: Bias and bias correction of VIIRS nighttime lights data." <em>Remote Sensing of Environment</em>, 258, 112165.</li>
+                <li><strong>Geocoding:</strong> OpenStreetMap contributors. (2024). OpenStreetMap. https://www.openstreetmap.org</li>
+            </ol>
+            
+            <h3>Technologies Used</h3>
+            <ul>
+                <li><strong>FastAPI</strong> by Sebastián Ramírez - <a href="https://fastapi.tiangolo.com" target="_blank">https://fastapi.tiangolo.com</a> - MIT License</li>
+                <li><strong>Leaflet.js</strong> - <a href="https://leafletjs.com" target="_blank">https://leafletjs.com</a> - BSD 2-Clause License</li>
+                <li><strong>D3.js</strong> - <a href="https://d3js.org" target="_blank">https://d3js.org</a> - ISC License</li>
+                <li><strong>Rasterio</strong> by Mapbox - BSD License</li>
+                <li><strong>PyProj</strong> - MIT License</li>
+            </ul>
+            
+            <div class="warning">
+                <h4>Disclaimer</h4>
+                <p>This tool is provided for educational and research purposes. The spatial aggregation methodology uses simplified city boundary approximations. For publication-grade research, verify results using GIS software with actual administrative boundaries.</p>
+                <p><strong>No warranty is provided regarding accuracy, completeness, or suitability for specific use cases.</strong></p>
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>Version 1.0.0</strong> • Last Updated: November 7, 2025</p>
+            <p><a href="index.html">← Back to Analysis Tool</a></p>
+            <p style="margin-top: 20px;">Built with 🛰️ satellite data and ❤️ for data visualization</p>
+        </footer>
+    </div>
+</body>
+</html>
+
+
+
+
+
+

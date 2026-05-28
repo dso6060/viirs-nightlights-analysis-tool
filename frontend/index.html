@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive VIIRS nightlights analysis tool for tracking economic activity and urban development through satellite data">
+    <title>VIIRS Nightlights Analysis Tool</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌍 VIIRS Nightlights Analysis Tool</h1>
+            <p class="subtitle">Track economic activity through satellite nighttime lights data (2012-2025)</p>
+            <p class="data-source">Data: NOAA Earth Observation Group | Bias correction: Elvidge et al. (2021)</p>
+            <p class="methodology-link" style="margin-top: 10px;">
+                <a href="methodology.html" target="_blank" style="color: #ffffff; text-decoration: underline; font-weight: 600; font-size: 14px;">
+                    📖 Read Complete Methodology & Data Flow →
+                </a>
+            </p>
+        </header>
+        
+        <!-- Search and Controls Section -->
+        <div class="controls-section">
+            <div class="search-container">
+                <label for="city-search">Search City or Coordinates:</label>
+                <div class="autocomplete-wrapper">
+                    <input 
+                        type="text" 
+                        id="city-search" 
+                        placeholder="Enter city name (e.g., Mumbai) or coordinates (19.07, 72.87)"
+                        autocomplete="off"
+                    >
+                    <button id="add-city-btn" class="add-city-button">+ Add City</button>
+                    <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+                </div>
+                <div id="selected-cities-container" class="selected-cities-container">
+                    <p class="no-cities-message">No cities selected. Add up to 5 cities for optimal comparison.</p>
+                </div>
+                <p class="info-text" style="font-size: 12px; color: #888; margin-top: 5px;">
+                    💡 Tip: Limit to 5 cities for clear visualization and optimal performance
+                </p>
+                <div class="quick-add-cities" style="margin-top: 10px;">
+                    <span style="font-size: 12px; color: #666; margin-right: 8px;">Quick add:</span>
+                    <button class="quick-city-btn" data-city="Mumbai">Mumbai</button>
+                    <button class="quick-city-btn" data-city="Delhi">Delhi</button>
+                    <button class="quick-city-btn" data-city="Bengaluru">Bengaluru</button>
+                    <button class="quick-city-btn" data-city="Chennai">Chennai</button>
+                    <button class="quick-city-btn" data-city="Tiruppur">Tiruppur</button>
+                </div>
+            </div>
+            
+            <div class="date-controls">
+                <div class="date-group">
+                    <label>Start Date:</label>
+                    <select id="start-month" class="month-select">
+                        <option value="01">January</option>
+                        <option value="02">February</option>
+                        <option value="03">March</option>
+                        <option value="04">April</option>
+                        <option value="05">May</option>
+                        <option value="06">June</option>
+                        <option value="07">July</option>
+                        <option value="08">August</option>
+                        <option value="09">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                    <select id="start-year" class="year-select"></select>
+                </div>
+                
+                <div class="date-group">
+                    <label>End Date:</label>
+                    <select id="end-month" class="month-select">
+                        <option value="01">January</option>
+                        <option value="02">February</option>
+                        <option value="03">March</option>
+                        <option value="04">April</option>
+                        <option value="05">May</option>
+                        <option value="06">June</option>
+                        <option value="07">July</option>
+                        <option value="08">August</option>
+                        <option value="09">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                    <select id="end-year" class="year-select"></select>
+                </div>
+            </div>
+            
+            <div class="latest-data-indicator">
+                <span id="latest-data-badge">Loading latest data...</span>
+            </div>
+            
+            <button id="analyze-btn" class="analyze-button">
+                <span class="btn-icon">🔍</span> Analyze
+            </button>
+        </div>
+        
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="loading-indicator" style="display: none;">
+            <div class="spinner"></div>
+            <p id="loading-message">Fetching VIIRS data from NOAA...</p>
+        </div>
+        
+        <!-- Error Display -->
+        <div id="error-display" class="error-display" style="display: none;">
+            <span class="error-icon">⚠️</span>
+            <p id="error-message"></p>
+            <button id="dismiss-error" class="dismiss-btn">Dismiss</button>
+        </div>
+        
+        <!-- Main Content: Map and Graph -->
+        <div class="main-content" id="main-content" style="display: none;">
+            <div class="content-grid">
+                <!-- Left Panel: Map -->
+                <div class="map-panel">
+                    <div class="panel-header">
+                        <h2>Geographic View</h2>
+                        <div class="map-controls">
+                            <label for="map-style">Map Style:</label>
+                            <select id="map-style" class="map-style-select">
+                                <option value="osm">OpenStreetMap</option>
+                                <option value="dark" selected>Dark Mode</option>
+                                <option value="satellite">Satellite</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="map-container"></div>
+                    <div id="date-overlay" class="date-overlay">
+                        <span id="current-date-display">2019-01</span>
+                    </div>
+                </div>
+                
+                <!-- Right Panel: Graph -->
+                <div class="graph-panel">
+                    <div class="panel-header">
+                        <h2>Radiance Timeline</h2>
+                        <div class="graph-controls">
+                            <span class="graph-info">Radiance data (bias-corrected)</span>
+                        </div>
+                    </div>
+                    <div id="graph-container"></div>
+                </div>
+            </div>
+            
+            <!-- Animation Controls -->
+            <div class="animation-controls">
+                <button id="play-pause-btn" class="control-btn">
+                    <span id="play-icon">▶️</span> Play
+                </button>
+                <input 
+                    type="range" 
+                    id="timeline-slider" 
+                    class="timeline-slider" 
+                    min="0" 
+                    max="100" 
+                    value="0"
+                />
+                <div class="speed-controls">
+                    <label>Speed:</label>
+                    <button id="speed-decrease" class="speed-btn">−</button>
+                    <span id="speed-display">1x</span>
+                    <button id="speed-increase" class="speed-btn">+</button>
+                </div>
+            </div>
+            
+            <!-- Export Controls -->
+            <div class="export-controls">
+                <h3>Export Data</h3>
+                <button id="export-excel" class="export-btn">
+                    📊 Export to Excel
+                </button>
+                <button id="export-csv" class="export-btn">
+                    📄 Export to CSV
+                </button>
+                <button id="export-json" class="export-btn">
+                    📋 Export to JSON
+                </button>
+            </div>
+            
+            <!-- Map Legend & Information (ukRus style) -->
+            <div class="legend-section">
+                <h3>Map Legend & Information</h3>
+                
+                <!-- Radiance Scale -->
+                <div class="legend-item">
+                    <h4>Radiance Scale</h4>
+                    <div class="radiance-scale">
+                        <div class="scale-gradient"></div>
+                        <p>Higher values indicate brighter nighttime lights</p>
+                        <p class="data-source">VIIRS DNB monthly radiance (bias-corrected) (Elvidge et al., 2021)</p>
+                    </div>
+                </div>
+                
+                <!-- Month-over-Month Change -->
+                <div class="legend-item">
+                    <h4>Month-over-Month Change</h4>
+                    <div class="change-legend">
+                        <div class="legend-row">
+                            <div class="legend-color green"></div>
+                            <span>+5%+ Increase</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color yellow"></div>
+                            <span>-5% to +5% Stable</span>
+                        </div>
+                        <div class="legend-row">
+                            <div class="legend-color red"></div>
+                            <span>-5%- Decrease</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Map Elements -->
+                <div class="legend-item">
+                    <h4>Map Elements</h4>
+                    <div class="map-elements">
+                        <p><strong>Radiance Circles:</strong> Size = radiance intensity, Color = radiance value, Border = percentage change</p>
+                        <p><strong>Percentage:</strong> Shows radiance change compared to baseline year</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Simple Footer -->
+        <footer class="simple-footer">
+            <p class="footer-content">
+                <strong>Data:</strong> <a href="https://eogdata.mines.edu" target="_blank">NOAA Earth Observation Group</a> | 
+                <strong>Methodology:</strong> Elvidge et al. (2021) | 
+                <strong>Geocoding:</strong> <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a>
+                <br>
+                <a href="methodology.html" target="_blank" style="color: #e85d00; font-weight: 600; margin-top: 10px; display: inline-block;">
+                    📖 Read Complete Methodology, Data Flow & Limitations
+                </a>
+            </p>
+        </footer>
+    </div>
+    
+    <!-- JavaScript Modules -->
+    <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
+
