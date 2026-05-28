@@ -11,14 +11,13 @@ class HandoverInfo:
     repo_url: str
     primary_maintainer_name: str
     primary_maintainer_github: str
-    co_maintainer_name: str
-    co_maintainer_github: str
+    friend_name: str
+    friend_github: str
     hosting: str
     license_name: str
     issue_tracker: str
     deployment_target: str
     credentials_policy: str
-    include_current_dbs: bool
     tone: str
 
 
@@ -42,23 +41,24 @@ def build_doc(info: HandoverInfo, out_path: Path) -> None:
     doc = Document()
 
     # Title
-    doc.add_heading(f"{info.project_public_name} — Maintainer Handover (Co-maintainer)", level=0)
+    doc.add_heading(f"{info.project_public_name} — Idea & Build Notes (Shared)", level=0)
     doc.add_paragraph(f"Date: {date.today().isoformat()}")
     doc.add_paragraph(f"Repository: {info.repo_url or 'TBD (to be created)'}")
 
     _add_heading(doc, "1) Purpose of this document", level=1)
     doc.add_paragraph(
-        "This document enables a clean, repeatable handover so a co-maintainer can safely operate, "
-        "extend, and (if needed) deploy the project as an open-source repository."
+        "This document is a lightweight, shareable record of the idea, architecture, and build steps for the tool. "
+        "It is meant to help a friend (and future contributors) understand how to build and run the project so that "
+        "researchers can quickly retrieve VIIRS data and download reports."
     )
 
-    _add_heading(doc, "2) Maintainers & roles", level=1)
+    _add_heading(doc, "2) People (idea shared)", level=1)
     _add_bullets(
         doc,
         [
-            f"Primary maintainer: {info.primary_maintainer_name} (GitHub: @{info.primary_maintainer_github})",
-            f"Co-maintainer: {info.co_maintainer_name} (GitHub: @{info.co_maintainer_github})",
-            "Target co-maintainer permission: Admin (full control).",
+            f"Primary author: {info.primary_maintainer_name} (GitHub: @{info.primary_maintainer_github})",
+            f"Friend (idea/build notes shared): {info.friend_name} (GitHub: @{info.friend_github})",
+            "This is not a formal maintainer handoff. GitHub permissions can remain minimal unless needed later.",
         ],
     )
 
@@ -85,7 +85,7 @@ def build_doc(info: HandoverInfo, out_path: Path) -> None:
         [
             "Make nightlights trend analysis accessible with a simple UI for cities, coordinates, and comparisons.",
             "Support research-grade runs using real NOAA data (authenticated where required).",
-            "Enable caching/preprocessing for fast repeated queries and predictable server costs.",
+            "Enable fast, repeatable downloads and report-ready outputs for researchers.",
         ],
     )
     doc.add_paragraph("Current scope (what exists today):")
@@ -98,6 +98,16 @@ def build_doc(info: HandoverInfo, out_path: Path) -> None:
             "Docker Compose + nginx reverse proxy (VPS-friendly).",
         ],
     )
+    doc.add_paragraph("Future scope (optional, later improvements):")
+    _add_bullets(
+        doc,
+        [
+            "More precise spatial masking using real city boundaries (shapefiles/OSM polygons) instead of radius/bounding-box approximations.",
+            "A dedicated report generator (downloadable artifacts) tailored for research workflows (tables, charts, citations, reproducibility metadata).",
+            "A more advanced visualization UI if researchers need publication-grade exploratory tooling.",
+        ],
+    )
+
     doc.add_paragraph("Out of scope (not guaranteed / future work):")
     _add_bullets(
         doc,
@@ -197,21 +207,22 @@ def build_doc(info: HandoverInfo, out_path: Path) -> None:
         ],
     )
 
-    _add_heading(doc, "8) Co-maintainer (Admin) handover steps", level=1)
-    doc.add_paragraph("Steps for Divya to grant Admin access to Ayush on GitHub:")
+    _add_heading(doc, "8) Sharing process with a friend (optional GitHub access)", level=1)
+    doc.add_paragraph(
+        "If you want your friend to contribute directly via GitHub, you can add them as a collaborator later. "
+        "This document does not assume any specific role (co-maintainer/admin)."
+    )
     _add_numbered(
         doc,
         [
-            "Create the GitHub repository (if not already created).",
             "Go to Repository → Settings → Collaborators and teams.",
-            "Invite Ayush by GitHub username and set role to Admin.",
-            "Ask Ayush to accept the invitation.",
-            "Optional: enable branch protection rules (e.g., require PR reviews) once stable.",
+            "Invite your friend by GitHub username.",
+            "Start with the least privilege needed (e.g., Write). Increase later if needed.",
         ],
     )
 
     _add_heading(doc, "9) Data distribution decision: committing SQLite DBs (downsides + recommendation)", level=1)
-    doc.add_paragraph("You confirmed you want to include the current DB files in the repo. Downsides to be aware of:")
+    doc.add_paragraph("For open source, avoid committing real datasets or large databases. Downsides to be aware of:")
     _add_bullets(
         doc,
         [
@@ -253,7 +264,7 @@ def build_doc(info: HandoverInfo, out_path: Path) -> None:
     _add_bullets(
         doc,
         [
-            "Dependency management: backend/requirements.txt is currently empty; add pinned dependencies for reproducible installs.",
+            "Dependency management: keep backend/requirements.txt pinned for reproducible installs.",
             "Search/autocomplete: frontend expects fields not returned by backend `/search` (API results may be filtered out).",
         ],
     )
@@ -285,14 +296,13 @@ def main() -> int:
         repo_url="https://github.com/dso6060/viirs-nightlights-analysis-tool",
         primary_maintainer_name="Divya Sornaraja",
         primary_maintainer_github="dso6060",
-        co_maintainer_name="Ayush Patnaik",
-        co_maintainer_github="ayushpatnaikgit",
+        friend_name="Ayush Patnaik",
+        friend_github="ayushpatnaikgit",
         hosting="GitHub",
         license_name="MIT",
         issue_tracker="GitHub Issues (in-repo)",
         deployment_target="Single VPS (nginx + backend), optionally Docker Compose",
         credentials_policy="Environment variables (never commit secrets)",
-        include_current_dbs=True,
         tone="friendly",
     )
 
