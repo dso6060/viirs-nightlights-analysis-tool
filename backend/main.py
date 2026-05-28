@@ -59,6 +59,12 @@ else:
 osm_service = OSMService()
 db = DatabaseManager(os.getenv("VIIRS_DB_PATH", "viirs_cache_local.db"))
 
+DATA_SOURCE_LABEL = (
+    "Google Earth Engine (NOAA VIIRS DNB Monthly V1 / VCMSLCFG)"
+    if _source == "gee"
+    else "NOAA Earth Observation Group"
+)
+
 
 # Request/Response Models
 class CityRequest(BaseModel):
@@ -103,7 +109,7 @@ def root():
             "Multi-city comparison",
             "Monthly granularity (2012-present)"
         ],
-        "data_source": "NOAA Earth Observation Group",
+        "data_source": DATA_SOURCE_LABEL,
         "endpoints": {
             "GET /": "API info",
             "GET /viirs/latest-available": "Get latest available data month",
@@ -198,7 +204,7 @@ def fetch_city_data(request: CityRequest):
             ]
 
         if not viirs_data:
-            print("Fetching VIIRS data from NOAA (cache miss)...")
+            print(f"Fetching VIIRS data from {DATA_SOURCE_LABEL} (cache miss)...")
             viirs_data = viirs_service.fetch_viirs_for_city(
                 city_name=city_info['city'],
                 lat=city_info['lat'],
@@ -237,7 +243,7 @@ def fetch_city_data(request: CityRequest):
             "metadata": {
                 "baseline_year": request.start_year,
                 "data_points": len(viirs_data),
-                "data_source": "NOAA Earth Observation Group",
+                "data_source": DATA_SOURCE_LABEL,
                 "bias_correction": "Elvidge et al. (2021)",
                 "processing": "On-the-fly"
             }
@@ -394,7 +400,7 @@ def fetch_coordinates_data(request: CoordinatesRequest):
             "metadata": {
                 "baseline_year": request.start_year,
                 "data_points": len(viirs_data),
-                "data_source": "NOAA Earth Observation Group"
+                "data_source": DATA_SOURCE_LABEL
             }
         }
     

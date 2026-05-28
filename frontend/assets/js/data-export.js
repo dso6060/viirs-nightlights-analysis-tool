@@ -60,7 +60,7 @@ export class DataExport {
         metadataSheet.push(
             [''],
             ['Data Information'],
-            ['Data Source', 'NOAA Earth Observation Group'],
+            ['Data Source', 'Google Earth Engine (NOAA VIIRS)'],
             ['Bias Correction', 'Elvidge et al. (2021)'],
             ['Baseline Year', metadata.baseline_year],
             ['Total Data Points', metadata.data_points],

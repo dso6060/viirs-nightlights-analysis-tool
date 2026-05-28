@@ -328,7 +328,7 @@ class VIIRSApp {
         }
         
         // Show loading
-        this.showLoading('Fetching VIIRS data from NOAA...');
+        this.showLoading('Fetching VIIRS data...');
         
         try {
             let response;

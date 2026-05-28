@@ -26,7 +26,7 @@
         <header>
             <h1>🌍 VIIRS Nightlights Analysis Tool</h1>
             <p class="subtitle">Track economic activity through satellite nighttime lights data (2012-2025)</p>
-            <p class="data-source">Data: NOAA Earth Observation Group | Bias correction: Elvidge et al. (2021)</p>
+            <p class="data-source">Data: Google Earth Engine (NOAA VIIRS) | Bias correction: Elvidge et al. (2021)</p>
             <p class="methodology-link" style="margin-top: 10px;">
                 <a href="methodology.html" target="_blank" style="color: #ffffff; text-decoration: underline; font-weight: 600; font-size: 14px;">
                     📖 Read Complete Methodology & Data Flow →
@@ -116,7 +116,7 @@
         <!-- Loading Indicator -->
         <div id="loading-indicator" class="loading-indicator" style="display: none;">
             <div class="spinner"></div>
-            <p id="loading-message">Fetching VIIRS data from NOAA...</p>
+            <p id="loading-message">Fetching VIIRS data...</p>
         </div>
         
         <!-- Error Display -->
@@ -242,7 +242,7 @@
         <!-- Simple Footer -->
         <footer class="simple-footer">
             <p class="footer-content">
-                <strong>Data:</strong> <a href="https://eogdata.mines.edu" target="_blank">NOAA Earth Observation Group</a> | 
+                <strong>Data:</strong> Google Earth Engine (NOAA VIIRS) | 
                 <strong>Methodology:</strong> Elvidge et al. (2021) | 
                 <strong>Geocoding:</strong> <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a>
                 <br>
