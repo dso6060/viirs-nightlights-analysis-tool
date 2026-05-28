@@ -161,8 +161,8 @@
                         <strong>Missing data:</strong> Some months are shown as gaps when cloud-free observations are very low
                         (e.g., monsoon/cloudy periods). In those cases we set radiance to <code>null</code> (not 0) to avoid misleading dips.
                         <br>
-                        <strong>% label:</strong> For each city and month-of-year, \( \%\Delta = \frac{(R_{corr} - R_{baseline})}{R_{baseline}} \times 100 \).
-                        Baseline is the first available year in the selected range (same month).
+                        <strong>% label:</strong> Compares this month’s brightness to the same month in the first year of your range (the “baseline”).
+                        Example: if January baseline = 20 and January now = 25, the label shows +25%.
                     </div>
                 </div>
             </div>
@@ -240,7 +240,7 @@
                     <h4>Map Elements</h4>
                     <div class="map-elements">
                         <p><strong>Radiance Circles:</strong> Size = radiance intensity, Color = radiance value, Border = percentage change</p>
-                        <p><strong>Percentage:</strong> Shows radiance change vs baseline (first year in range, same month-of-year)</p>
+                        <p><strong>Percentage:</strong> Change vs the first year (same month). Helps avoid seasonal effects.</p>
                         <p><strong>Gaps / NULL months:</strong> Months with very low cloud-free coverage are treated as <em>missing</em> (NULL) rather than 0.</p>
                     </div>
                 </div>
