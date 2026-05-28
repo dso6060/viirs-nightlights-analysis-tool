@@ -6,6 +6,7 @@ Direct HTTP access to VIIRS DNB monthly composites with on-the-fly processing.
 
 import os
 import re
+import tarfile
 import requests
 import rasterio
 import numpy as np
@@ -39,7 +40,11 @@ class NOAAVIIRSService:
         '00N060E': {'lat_range': (-65, 0), 'lon_range': (60, 180)}
     }
     
-    def __init__(self, cache_dir: str = "/tmp/viirs_cache"):
+    def __init__(
+        self,
+        cache_dir: str = "/tmp/viirs_cache",
+        session: Optional[requests.Session] = None,
+    ):
         """
         Initialize NOAA VIIRS service.
         
@@ -54,6 +59,10 @@ class NOAAVIIRSService:
         self.results_cache = self.cache_dir / "results"
         self.tile_cache.mkdir(exist_ok=True)
         self.results_cache.mkdir(exist_ok=True)
+
+        # Use an injected requests session (optionally authenticated),
+        # otherwise create a default session.
+        self.session = session or requests.Session()
     
     def get_tile_for_location(self, lat: float, lon: float) -> str:
         """
@@ -178,36 +187,32 @@ class NOAAVIIRSService:
         year, month = date_str.split("-")
         yearmonth = f"{year}{month}"
 
-        # 1) Find file URLs for avg radiance and cloud-free coverage
+        # Monthly V1 composites are delivered as .tgz containing:
+        # - *.avg_rade9h.tif
+        # - *.cf_cvg.tif
         base_path = f"{self.BASE_URL}/{year}/"
-        avg_url = self._find_file_url(
+        tgz_url = self._find_monthly_tgz_url(
             base_path=base_path,
             yearmonth=yearmonth,
             tile_name=tile_name,
-            band="avg_rade9",
         )
-        cf_url = self._find_file_url(
-            base_path=base_path,
-            yearmonth=yearmonth,
-            tile_name=tile_name,
-            band="cf_cvg",
-        )
-
-        if not avg_url:
+        if not tgz_url:
             raise RuntimeError(
-                f"Real-data mode: could not locate avg_rade9 GeoTIFF for {date_str}/{tile_name}"
+                f"Real-data mode: could not locate monthly .tgz for {date_str}/{tile_name}"
             )
 
-        # 2) Extract region arrays
-        avg_arr = self._download_and_extract_region(avg_url, lat, lon, radius_km)
+        avg_tif = self._download_tgz_extract_member(tgz_url, member_suffix=".avg_rade9h.tif")
+        cf_tif = self._download_tgz_extract_member(tgz_url, member_suffix=".cf_cvg.tif")
+
+        avg_arr = self._extract_region_from_tif_path(avg_tif, lat, lon, radius_km)
         if avg_arr is None:
             raise RuntimeError(
-                f"Real-data mode: failed to extract avg_rade9 region for {date_str}/{tile_name}"
+                f"Real-data mode: failed to extract avg_rade9h region for {date_str}/{tile_name}"
             )
 
         cf_arr = None
-        if cf_url:
-            cf_arr = self._download_and_extract_region(cf_url, lat, lon, radius_km)
+        if cf_tif and cf_tif.exists():
+            cf_arr = self._extract_region_from_tif_path(cf_tif, lat, lon, radius_km)
 
         # 3) Aggregate
         if not np.any(~np.isnan(avg_arr)):
@@ -236,6 +241,88 @@ class NOAAVIIRSService:
             "radiance_corrected": float(corrected_radiance),
             "cloud_free_coverage": cf_cvg,
         }
+
+    def _find_monthly_tgz_url(
+        self,
+        base_path: str,
+        yearmonth: str,
+        tile_name: str,
+        config: str = "vcmslcfg",
+        version: str = "v10",
+    ) -> Optional[str]:
+        """
+        Find the monthly tarball (.tgz) for a given YYYYMM and tile.
+        Example tgz name (per NOAA docs):
+          SVDNB_npp_20170101-20170131_00N060E_vcmslcfg_v10_c201702241225.tgz
+        """
+        try:
+            response = self.session.get(base_path, timeout=20)
+            if response.status_code != 200:
+                return None
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Match any day-range within month + tile + config/version
+            # We look for "SVDNB_npp_YYYYMM" and tile/config/version and ".tgz".
+            for link in soup.find_all("a"):
+                href = link.get("href", "")
+                if not href.endswith(".tgz"):
+                    continue
+                if f"SVDNB_npp_{yearmonth}" not in href:
+                    continue
+                if f"_{tile_name}_" not in href:
+                    continue
+                if f"_{config}_{version}_" not in href:
+                    continue
+                return f"{base_path}/{href}"
+
+            return None
+        except Exception as e:
+            print(f"Error finding tgz: {e}")
+            return None
+
+    def _download_tgz_extract_member(self, tgz_url: str, member_suffix: str) -> Path:
+        """
+        Download a .tgz into cache (if needed) and extract a single member
+        ending with member_suffix into the tile cache.
+        """
+        tgz_name = tgz_url.split("/")[-1]
+        tgz_cache = self.tile_cache / tgz_name
+
+        if not tgz_cache.exists():
+            print(f"Downloading: {tgz_name}")
+            resp = self.session.get(tgz_url, stream=True, timeout=300)
+            resp.raise_for_status()
+            with open(tgz_cache, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+
+        # Extract the requested member
+        with tarfile.open(tgz_cache, "r:gz") as tf:
+            member = next((m for m in tf.getmembers() if m.name.endswith(member_suffix)), None)
+            if not member:
+                raise RuntimeError(f"Tarball missing member {member_suffix}: {tgz_name}")
+
+            out_path = self.tile_cache / Path(member.name).name
+            if not out_path.exists():
+                extracted = tf.extractfile(member)
+                if extracted is None:
+                    raise RuntimeError(f"Failed to extract member {member.name} from {tgz_name}")
+                with open(out_path, "wb") as out_f:
+                    out_f.write(extracted.read())
+
+            return out_path
+
+    def _extract_region_from_tif_path(
+        self, tif_path: Path, lat: float, lon: float, radius_km: float
+    ) -> Optional[np.ndarray]:
+        try:
+            with rasterio.open(tif_path) as src:
+                return self._extract_region(src, lat, lon, radius_km)
+        except Exception as e:
+            print(f"GeoTIFF read error: {e}")
+            return None
     
     def _find_file_url(
         self,

@@ -35,8 +35,9 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Allow schema-only demo DB (no data)
+# Allow demo artifacts under docs/handover
 !docs/handover/viirs_demo_schema_only.sqlite
+!docs/handover/viirs_sample_data.sqlite
 
 # Temporary files
 *.tmp
