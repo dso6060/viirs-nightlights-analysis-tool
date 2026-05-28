@@ -167,18 +167,50 @@ def fetch_city_data(request: CityRequest):
                 detail="Start date must be before end date"
             )
         
-        # Geocode city
-        print(f"Geocoding: {request.city}, {request.country}")
-        city_info = osm_service.geocode_city(request.city, request.country)
-        
-        if not city_info:
-            raise HTTPException(
-                status_code=404,
-                detail=f"City '{request.city}' not found. Try different spelling or add country."
-            )
-        
-        # Cache-first: serve from local SQLite if present
-        cached_city = db.get_city_by_name(city_info["city"], city_info["country"])
+        # Cache-first: try DB lookup before any network geocoding
+        cached_city = db.get_city_by_name(request.city, request.country)
+        city_info = None
+        if cached_city:
+            city_info = {
+                "city": cached_city["name"],
+                "country": cached_city["country"],
+                "lat": cached_city["latitude"],
+                "lon": cached_city["longitude"],
+                "radius_km": cached_city.get("radius_km") or 10.0,
+                "display_name": cached_city.get("display_name") or "",
+                "osm_id": cached_city.get("osm_id") or "",
+                "place_type": cached_city.get("place_type") or "city",
+            }
+        else:
+            # Geocode city (network)
+            print(f"Geocoding: {request.city}, {request.country}")
+            city_info = osm_service.geocode_city(request.city, request.country)
+            if not city_info:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"City '{request.city}' not found. Try different spelling or add country."
+                )
+
+            # Cache city record (best-effort) so future requests skip geocoding
+            try:
+                db.add_city(
+                    {
+                        # Store the user-provided query name to maximize future cache hits
+                        "name": request.city,
+                        "country": city_info["country"],
+                        "lat": city_info["lat"],
+                        "lon": city_info["lon"],
+                        "radius_km": city_info["radius_km"],
+                        "display_name": city_info.get("display_name", ""),
+                        "osm_id": str(city_info.get("osm_id", "")),
+                        "place_type": city_info.get("place_type", "city"),
+                    }
+                )
+            except Exception as e:
+                print(f"Warning: failed to write city to cache DB: {e}")
+
+            cached_city = db.get_city_by_name(city_info["city"], city_info["country"])
+
         viirs_data = []
         if cached_city:
             cached_rows = db.get_viirs_data(
@@ -218,7 +250,8 @@ def fetch_city_data(request: CityRequest):
             try:
                 city_id = db.add_city(
                     {
-                        "name": city_info["city"],
+                        # Store the user-provided query name to maximize future cache hits
+                        "name": request.city,
                         "country": city_info["country"],
                         "lat": city_info["lat"],
                         "lon": city_info["lon"],
@@ -297,30 +330,88 @@ def fetch_multi_city_data(request: MultiCityRequest):
     
     for city_name in request.cities:
         try:
-            # Geocode
-            city_info = osm_service.geocode_city(city_name)
-            
-            if not city_info:
-                errors.append({
-                    "city": city_name,
-                    "error": "City not found"
-                })
-                continue
-            
-            # Fetch data
-            viirs_data = viirs_service.fetch_viirs_for_city(
-                city_name=city_info['city'],
-                lat=city_info['lat'],
-                lon=city_info['lon'],
-                radius_km=city_info['radius_km'],
-                start_date=start_date,
-                end_date=end_date
-            )
-            
-            # Add country
+            # Cache-first: try DB lookup first
+            cached_city = db.get_city_by_name(city_name, None)
+            city_info = None
+            viirs_data = []
+
+            if cached_city:
+                city_info = {
+                    "city": cached_city["name"],
+                    "country": cached_city["country"],
+                    "lat": cached_city["latitude"],
+                    "lon": cached_city["longitude"],
+                    "radius_km": cached_city.get("radius_km") or 10.0,
+                    "display_name": cached_city.get("display_name") or "",
+                    "osm_id": cached_city.get("osm_id") or "",
+                    "place_type": cached_city.get("place_type") or "city",
+                }
+                cached_rows = db.get_viirs_data(
+                    city_id=cached_city["id"],
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                min_cf_cvg = float(os.getenv("MIN_CF_CVG", "5"))
+                viirs_data = [
+                    {
+                        "date": r["date"],
+                        "city": r.get("city_name") or city_info["city"],
+                        "country": r.get("country") or city_info["country"],
+                        "latitude": r.get("latitude") or city_info["lat"],
+                        "longitude": r.get("longitude") or city_info["lon"],
+                        "radiance": None
+                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
+                        else r["radiance"],
+                        "radiance_corrected": None
+                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
+                        else r["radiance_corrected"],
+                        "cloud_free_coverage": r.get("cloud_free_coverage"),
+                        "data_quality": "low"
+                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
+                        else "ok",
+                    }
+                    for r in cached_rows
+                ]
+
+            if not viirs_data:
+                # Geocode only if DB doesn't already have this city
+                city_info = osm_service.geocode_city(city_name)
+                if not city_info:
+                    errors.append({"city": city_name, "error": "City not found"})
+                    continue
+
+                viirs_data = viirs_service.fetch_viirs_for_city(
+                    city_name=city_info["city"],
+                    lat=city_info["lat"],
+                    lon=city_info["lon"],
+                    radius_km=city_info["radius_km"],
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+
+                # Persist to cache DB (best-effort)
+                try:
+                    city_id = db.add_city(
+                        {
+                            # Store the user-provided query name to maximize future cache hits
+                            "name": city_name,
+                            "country": city_info["country"],
+                            "lat": city_info["lat"],
+                            "lon": city_info["lon"],
+                            "radius_km": city_info["radius_km"],
+                            "display_name": city_info.get("display_name", ""),
+                            "osm_id": str(city_info.get("osm_id", "")),
+                            "place_type": city_info.get("place_type", "city"),
+                        }
+                    )
+                    db.add_viirs_data(city_id, viirs_data)
+                except Exception as e:
+                    print(f"Warning: failed to write cache DB: {e}")
+
+            # Ensure country on points (frontend expects it)
             for point in viirs_data:
-                point['country'] = city_info['country']
-            
+                point["country"] = city_info["country"]
+
             results.append(city_info)
             all_data.extend(viirs_data)
         

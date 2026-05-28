@@ -243,7 +243,7 @@ class DatabaseManager:
             logger.info(f"Added city: {city_data['name']}, {city_data['country']} (ID: {city_id})")
             return city_id
     
-    def get_city_by_name(self, name: str, country: str = None) -> Optional[Dict]:
+    def get_city_by_name(self, name: str, country: Optional[str] = None) -> Optional[Dict]:
         """
         Get city by name and country.
         
@@ -256,20 +256,54 @@ class DatabaseManager:
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            
-            if country:
-                cursor.execute("""
-                    SELECT * FROM cities WHERE name = ? AND country = ?
-                """, (name, country))
+
+            name_norm = (name or "").strip()
+            country_norm = (country or "").strip() if country else None
+
+            # Case-insensitive match to improve cache hits from UI input.
+            # If country isn't provided, return the most recently updated matching city.
+            if country_norm:
+                cursor.execute(
+                    """
+                    SELECT * FROM cities
+                    WHERE lower(name) = lower(?) AND lower(country) = lower(?)
+                    LIMIT 1
+                    """,
+                    (name_norm, country_norm),
+                )
             else:
-                cursor.execute("""
-                    SELECT * FROM cities WHERE name = ?
-                """, (name,))
+                cursor.execute(
+                    """
+                    SELECT * FROM cities
+                    WHERE lower(name) = lower(?)
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                    """,
+                    (name_norm,),
+                )
             
             row = cursor.fetchone()
             if row:
                 columns = [desc[0] for desc in cursor.description]
                 return dict(zip(columns, row))
+
+            # Fallback: if we didn't find an exact match (common when OSM returns
+            # names like "Chennai Corporation"), try a contains match.
+            if name_norm and not country_norm:
+                cursor.execute(
+                    """
+                    SELECT * FROM cities
+                    WHERE lower(name) LIKE lower(?)
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                    """,
+                    (f"%{name_norm}%",),
+                )
+                row = cursor.fetchone()
+                if row:
+                    columns = [desc[0] for desc in cursor.description]
+                    return dict(zip(columns, row))
+
             return None
     
     def get_all_cities(self, limit: int = None) -> List[Dict]:
