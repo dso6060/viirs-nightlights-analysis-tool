@@ -282,7 +282,7 @@ def main() -> int:
     # Fill values from the current handover context; regenerate later if needed.
     info = HandoverInfo(
         project_public_name="VIIRS Nightlights Analysis Tool",
-        repo_url="TBD (to be created)",
+        repo_url="https://github.com/dso6060/viirs-nightlights-analysis-tool",
         primary_maintainer_name="Divya Sornaraja",
         primary_maintainer_github="dso6060",
         co_maintainer_name="Ayush Patnaik",
