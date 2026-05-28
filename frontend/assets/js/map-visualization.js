@@ -328,21 +328,21 @@ export class MapVisualization {
             }
         );
         
-        // Add city label with percentage change (positioned to the right of circle)
+        // Add city label with percentage change (avoid overlaps by deterministic offsets)
         const percentageChange = point.percentage_change || 0;
         const percentageSign = percentageChange >= 0 ? '+' : '';
         const labelText = `${point.city} ${percentageSign}${percentageChange.toFixed(1)}%`;
-        
-        // Position label to the right of the circle with some offset
-        const labelLat = point.latitude;
-        const labelLon = point.longitude + 0.02; // Move to the right
+
+        const { latDelta, lonDelta, anchorX, anchorY } = this.getLabelOffset(point.city, point.country);
+        const labelLat = point.latitude + latDelta;
+        const labelLon = point.longitude + lonDelta;
         
         const cityLabel = L.marker([labelLat, labelLon], {
             icon: L.divIcon({
                 className: 'city-label',
                 html: `<div class="city-label-text">${labelText}</div>`,
                 iconSize: [140, 20],
-                iconAnchor: [0, 10]
+                iconAnchor: [anchorX, anchorY]
             })
         });
         
@@ -382,6 +382,32 @@ export class MapVisualization {
         `);
         
         return markerGroup;
+    }
+
+    getLabelOffset(city, country) {
+        // Deterministic placement around the marker to reduce label overlap.
+        // Uses a simple hash to pick one of several offset "slots".
+        const key = `${city || ''}_${country || ''}`;
+        let h = 0;
+        for (let i = 0; i < key.length; i++) {
+            h = (h * 31 + key.charCodeAt(i)) >>> 0;
+        }
+        const slot = h % 8;
+
+        // Offsets in degrees; tuned for India-scale view at zoom ~6–10.
+        // (Lon degrees vary by latitude; good enough for UI labels.)
+        const offsets = [
+            { latDelta: 0.00, lonDelta: 0.030, anchorX: 0, anchorY: 10 },   // E
+            { latDelta: 0.012, lonDelta: 0.026, anchorX: 0, anchorY: 10 },  // ENE
+            { latDelta: -0.012, lonDelta: 0.026, anchorX: 0, anchorY: 10 }, // ESE
+            { latDelta: 0.018, lonDelta: 0.016, anchorX: 0, anchorY: 10 },  // NE
+            { latDelta: -0.018, lonDelta: 0.016, anchorX: 0, anchorY: 10 }, // SE
+            { latDelta: 0.018, lonDelta: -0.016, anchorX: 140, anchorY: 10 }, // NW (anchor right)
+            { latDelta: -0.018, lonDelta: -0.016, anchorX: 140, anchorY: 10 }, // SW
+            { latDelta: 0.00, lonDelta: -0.030, anchorX: 140, anchorY: 10 },   // W
+        ];
+
+        return offsets[slot];
     }
     
     onCityClick(cityName) {

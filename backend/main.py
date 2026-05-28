@@ -278,7 +278,9 @@ def fetch_city_data(request: CityRequest):
                 "data_points": len(viirs_data),
                 "data_source": DATA_SOURCE_LABEL,
                 "bias_correction": "Elvidge et al. (2021)",
-                "processing": "On-the-fly"
+                "processing": "On-the-fly",
+                "min_cf_cvg": float(os.getenv("MIN_CF_CVG", "5")),
+                "missing_data_policy": "Months with cloud_free_coverage < MIN_CF_CVG are returned as null radiance to avoid misleading zeros."
             }
         }
     
@@ -429,7 +431,11 @@ def fetch_multi_city_data(request: MultiCityRequest):
         "metadata": {
             "cities_processed": len(results),
             "cities_failed": len(errors),
-            "total_data_points": len(all_data)
+            "total_data_points": len(all_data),
+            "data_source": DATA_SOURCE_LABEL,
+            "bias_correction": "Elvidge et al. (2021)",
+            "min_cf_cvg": float(os.getenv("MIN_CF_CVG", "5")),
+            "missing_data_policy": "Months with cloud_free_coverage < MIN_CF_CVG are returned as null radiance to avoid misleading zeros."
         }
     }
 
@@ -491,7 +497,10 @@ def fetch_coordinates_data(request: CoordinatesRequest):
             "metadata": {
                 "baseline_year": request.start_year,
                 "data_points": len(viirs_data),
-                "data_source": DATA_SOURCE_LABEL
+                "data_source": DATA_SOURCE_LABEL,
+                "bias_correction": "Elvidge et al. (2021)",
+                "min_cf_cvg": float(os.getenv("MIN_CF_CVG", "5")),
+                "missing_data_policy": "Months with cloud_free_coverage < MIN_CF_CVG are returned as null radiance to avoid misleading zeros."
             }
         }
     
