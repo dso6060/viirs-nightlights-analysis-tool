@@ -13,8 +13,10 @@ from datetime import datetime
 import os
 
 from noaa_viirs_service import NOAAVIIRSService
+from gee_viirs_service import GEEVIIRSService, GEEServiceConfig
 from osm_service import OSMService
 from bias_correction import BiasCorrection
+from database import DatabaseManager
 
 
 # Initialize FastAPI app
@@ -35,8 +37,27 @@ app.add_middleware(
 )
 
 # Initialize services
-viirs_service = NOAAVIIRSService()
+_noaa_user = os.getenv("NOAA_EOG_USERNAME")
+_noaa_pass = os.getenv("NOAA_EOG_PASSWORD")
+_noaa_session = None
+if _noaa_user and _noaa_pass:
+    try:
+        from noaa_auth import NOAAAuthenticator
+
+        _noaa_session = NOAAAuthenticator(_noaa_user, _noaa_pass).get_authenticated_session()
+    except Exception as e:
+        print(f"Warning: NOAA authentication failed; continuing without session: {e}")
+
+_source = os.getenv("VIIRS_SOURCE", "noaa").lower()
+if _source == "gee":
+    _gee_project = os.getenv("GEE_PROJECT_ID")
+    if not _gee_project:
+        raise RuntimeError("VIIRS_SOURCE=gee requires GEE_PROJECT_ID env var")
+    viirs_service = GEEVIIRSService(GEEServiceConfig(project_id=_gee_project))
+else:
+    viirs_service = NOAAVIIRSService(session=_noaa_session)
 osm_service = OSMService()
+db = DatabaseManager(os.getenv("VIIRS_DB_PATH", "viirs_cache_local.db"))
 
 
 # Request/Response Models
@@ -44,17 +65,17 @@ class CityRequest(BaseModel):
     city: str = Field(..., description="City name")
     country: Optional[str] = Field(None, description="Country name (optional)")
     start_month: int = Field(1, ge=1, le=12, description="Start month (1-12)")
-    start_year: int = Field(2019, ge=2012, le=2025, description="Start year")
+    start_year: int = Field(2019, ge=2012, le=2100, description="Start year")
     end_month: int = Field(12, ge=1, le=12, description="End month (1-12)")
-    end_year: int = Field(2024, ge=2012, le=2025, description="End year")
+    end_year: int = Field(2024, ge=2012, le=2100, description="End year")
 
 
 class MultiCityRequest(BaseModel):
     cities: List[str] = Field(..., max_length=5, description="List of city names (max 5)")
     start_month: int = Field(1, ge=1, le=12)
-    start_year: int = Field(2019, ge=2012, le=2025)
+    start_year: int = Field(2019, ge=2012, le=2100)
     end_month: int = Field(12, ge=1, le=12)
-    end_year: int = Field(2024, ge=2012, le=2025)
+    end_year: int = Field(2024, ge=2012, le=2100)
 
 
 class CoordinatesRequest(BaseModel):
@@ -62,9 +83,9 @@ class CoordinatesRequest(BaseModel):
     longitude: float = Field(..., ge=-180, le=180, description="Longitude")
     radius_km: float = Field(10.0, gt=0, le=50, description="Radius in km")
     start_month: int = Field(1, ge=1, le=12)
-    start_year: int = Field(2019, ge=2012, le=2025)
+    start_year: int = Field(2019, ge=2012, le=2100)
     end_month: int = Field(12, ge=1, le=12)
-    end_year: int = Field(2024, ge=2012, le=2025)
+    end_year: int = Field(2024, ge=2012, le=2100)
 
 
 # API Endpoints
@@ -150,16 +171,60 @@ def fetch_city_data(request: CityRequest):
                 detail=f"City '{request.city}' not found. Try different spelling or add country."
             )
         
-        # Fetch VIIRS data
-        print(f"Fetching VIIRS data from NOAA...")
-        viirs_data = viirs_service.fetch_viirs_for_city(
-            city_name=city_info['city'],
-            lat=city_info['lat'],
-            lon=city_info['lon'],
-            radius_km=city_info['radius_km'],
-            start_date=start_date,
-            end_date=end_date
-        )
+        # Cache-first: serve from local SQLite if present
+        cached_city = db.get_city_by_name(city_info["city"], city_info["country"])
+        viirs_data = []
+        if cached_city:
+            cached_rows = db.get_viirs_data(
+                city_id=cached_city["id"],
+                start_date=start_date,
+                end_date=end_date,
+            )
+            # Normalize cache rows to API schema expected by frontend
+            min_cf_cvg = float(os.getenv("MIN_CF_CVG", "5"))
+            viirs_data = [
+                {
+                    "date": r["date"],
+                    "city": r.get("city_name") or city_info["city"],
+                    "country": r.get("country") or city_info["country"],
+                    "latitude": r.get("latitude") or city_info["lat"],
+                    "longitude": r.get("longitude") or city_info["lon"],
+                    "radiance": None if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg) else r["radiance"],
+                    "radiance_corrected": None if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg) else r["radiance_corrected"],
+                    "cloud_free_coverage": r.get("cloud_free_coverage"),
+                    "data_quality": "low" if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg) else "ok",
+                }
+                for r in cached_rows
+            ]
+
+        if not viirs_data:
+            print("Fetching VIIRS data from NOAA (cache miss)...")
+            viirs_data = viirs_service.fetch_viirs_for_city(
+                city_name=city_info['city'],
+                lat=city_info['lat'],
+                lon=city_info['lon'],
+                radius_km=city_info['radius_km'],
+                start_date=start_date,
+                end_date=end_date
+            )
+
+            # Persist to cache DB (best-effort)
+            try:
+                city_id = db.add_city(
+                    {
+                        "name": city_info["city"],
+                        "country": city_info["country"],
+                        "lat": city_info["lat"],
+                        "lon": city_info["lon"],
+                        "radius_km": city_info["radius_km"],
+                        "display_name": city_info.get("display_name", ""),
+                        "osm_id": str(city_info.get("osm_id", "")),
+                        "place_type": city_info.get("place_type", "city"),
+                    }
+                )
+                db.add_viirs_data(city_id, viirs_data)
+            except Exception as e:
+                print(f"Warning: failed to write cache DB: {e}")
         
         # Add country to each data point
         for point in viirs_data:

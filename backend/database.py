@@ -66,8 +66,8 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     city_id INTEGER NOT NULL,
                     date TEXT NOT NULL,
-                    radiance REAL NOT NULL,
-                    radiance_corrected REAL NOT NULL,
+                    radiance REAL,
+                    radiance_corrected REAL,
                     cloud_free_coverage REAL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (city_id) REFERENCES cities (id),
@@ -110,6 +110,72 @@ class DatabaseManager:
             
             conn.commit()
             logger.info("Database initialized successfully")
+
+        # Run lightweight schema migrations if needed.
+        self._migrate_schema_if_needed()
+
+    def _migrate_schema_if_needed(self):
+        """
+        Perform in-place migrations for older DB schema versions.
+
+        Currently:
+        - Allow NULL radiance fields in `viirs_data` so low-quality months can be stored.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cur = conn.cursor()
+                cur.execute("PRAGMA table_info(viirs_data)")
+                cols = cur.fetchall()
+                if not cols:
+                    return
+
+                # PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
+                col_by_name = {c[1]: c for c in cols}
+                rad_notnull = col_by_name.get("radiance", (None, None, None, 0))[3]
+                radc_notnull = col_by_name.get("radiance_corrected", (None, None, None, 0))[3]
+
+                if rad_notnull == 0 and radc_notnull == 0:
+                    return  # already migrated
+
+                logger.info("Migrating schema: making viirs_data radiance fields nullable...")
+
+                conn.execute("PRAGMA foreign_keys = OFF")
+                conn.execute("BEGIN")
+
+                cur.execute("""
+                    CREATE TABLE viirs_data_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        city_id INTEGER NOT NULL,
+                        date TEXT NOT NULL,
+                        radiance REAL,
+                        radiance_corrected REAL,
+                        cloud_free_coverage REAL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (city_id) REFERENCES cities (id),
+                        UNIQUE(city_id, date)
+                    )
+                """)
+
+                cur.execute("""
+                    INSERT INTO viirs_data_new (id, city_id, date, radiance, radiance_corrected, cloud_free_coverage, created_at)
+                    SELECT id, city_id, date, radiance, radiance_corrected, cloud_free_coverage, created_at
+                    FROM viirs_data
+                """)
+
+                cur.execute("DROP TABLE viirs_data")
+                cur.execute("ALTER TABLE viirs_data_new RENAME TO viirs_data")
+
+                # Recreate indexes
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_viirs_city_date ON viirs_data(city_id, date)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_viirs_date ON viirs_data(date)")
+
+                conn.execute("COMMIT")
+                conn.execute("PRAGMA foreign_keys = ON")
+                logger.info("Schema migration complete.")
+        except Exception as e:
+            logger.error(f"Schema migration failed: {e}")
+            # Don't block app startup if migration fails; caller can handle manually.
+            return
     
     def add_city(self, city_data: Dict) -> int:
         """

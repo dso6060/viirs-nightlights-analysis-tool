@@ -421,6 +421,8 @@ class VIIRSApp {
         
         // Group data by city
         this.data.forEach(point => {
+            // Skip low-quality/missing months
+            if (point.radiance_corrected == null) return;
             const cityKey = `${point.city}_${point.country}`;
             if (!cityGroups[cityKey]) {
                 cityGroups[cityKey] = [];
@@ -654,7 +656,11 @@ class VIIRSApp {
     }
     
     showError(message) {
-        document.getElementById('error-message').textContent = message;
+        const msg =
+            (typeof message === 'string') ? message :
+            (message && message.message && typeof message.message === 'string') ? message.message :
+            JSON.stringify(message);
+        document.getElementById('error-message').textContent = msg;
         document.getElementById('error-display').style.display = 'flex';
     }
     

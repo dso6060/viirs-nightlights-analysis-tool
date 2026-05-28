@@ -43,19 +43,22 @@ export class GraphVisualization {
             .append('g')
             .attr('transform', `translate(${this.margin.left},${this.margin.top})`);
         
+        // Filter out missing/low-quality points
+        const validData = this.data.filter(d => d.radiance_corrected != null);
+
         // Parse dates
         const parseDate = d3.timeParse("%Y-%m");
-        this.data.forEach(d => {
+        validData.forEach(d => {
             d.parsedDate = parseDate(d.date);
         });
         
         // Create scales
         this.xScale = d3.scaleTime()
-            .domain(d3.extent(this.data, d => d.parsedDate))
+            .domain(d3.extent(validData, d => d.parsedDate))
             .range([0, this.width]);
         
         this.yScale = d3.scaleLinear()
-            .domain([0, d3.max(this.data, d => d.radiance_corrected) * 1.1])
+            .domain([0, d3.max(validData, d => d.radiance_corrected) * 1.1])
             .range([this.height, 0]);
         
         // Add axes
@@ -102,11 +105,12 @@ export class GraphVisualization {
         
         // Draw lines for each city
         this.line = d3.line()
+            .defined(d => d.radiance_corrected != null && d.parsedDate != null)
             .x(d => this.xScale(d.parsedDate))
             .y(d => this.yScale(d.radiance_corrected));
         
         // Group data by city
-        const cityGroups = d3.group(this.data, d => d.city);
+        const cityGroups = d3.group(validData, d => d.city);
         const colors = ['#1e88e5', '#e85d00', '#43a047', '#d32f2f', '#7b1fa2'];
         
         // Draw a line for each city
@@ -145,7 +149,7 @@ export class GraphVisualization {
         
         // Add dots colored by city
         this.dots = this.svg.selectAll('.dot')
-            .data(this.data)
+            .data(validData)
             .enter()
             .append('circle')
             .attr('class', 'dot')

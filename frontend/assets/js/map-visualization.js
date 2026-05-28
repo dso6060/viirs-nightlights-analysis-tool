@@ -48,6 +48,13 @@ export class MapVisualization {
             }
             this.dataByDate[point.date].push(point);
         });
+
+        // If the map hasn't been created yet (first run single-city),
+        // create it now before attempting to render markers/layers.
+        if (!this.map) {
+            this.createMap();
+            this.setupMapControls();
+        }
         
         // Update visualizations for first date
         this.updateDate(this.dates[0], 0);
@@ -214,6 +221,17 @@ export class MapVisualization {
     }
     
     updateDate(date, dateIndex) {
+        // Defensive: ensure Leaflet map exists before touching layers/markers.
+        // This prevents crashes in the single-city path if updateDate is called
+        // before createMap() has run (e.g., timing/cached asset issues).
+        if (!this.map) {
+            this.createMap();
+            this.setupMapControls();
+            if (!this.map) {
+                return;
+            }
+        }
+
         // Remove existing markers
         Object.values(this.markers).forEach(marker => {
             this.map.removeLayer(marker);
@@ -243,6 +261,8 @@ export class MapVisualization {
         const cityGroups = {};
         
         data.forEach(point => {
+            // Skip missing/low-quality months
+            if (point.radiance_corrected == null) return;
             const cityKey = `${point.city}_${point.country}`;
             if (!cityGroups[cityKey]) {
                 cityGroups[cityKey] = {
@@ -251,23 +271,34 @@ export class MapVisualization {
                     lat: point.latitude,
                     lon: point.longitude,
                     radiance: [],
-                    radiance_corrected: []
+                    radiance_corrected: [],
+                    percentage_change: [],
+                    date: point.date
                 };
             }
             cityGroups[cityKey].radiance.push(point.radiance);
             cityGroups[cityKey].radiance_corrected.push(point.radiance_corrected);
+            if (typeof point.percentage_change === 'number') {
+                cityGroups[cityKey].percentage_change.push(point.percentage_change);
+            }
         });
         
         // Calculate averages for each city
         const cityPoints = [];
         Object.values(cityGroups).forEach(city => {
+            const avgPct = city.percentage_change.length
+                ? (city.percentage_change.reduce((a, b) => a + b, 0) / city.percentage_change.length)
+                : 0;
+
             cityPoints.push({
                 city: city.city,
                 country: city.country,
                 latitude: city.lat,
                 longitude: city.lon,
+                date: city.date,
                 radiance: city.radiance.reduce((a, b) => a + b, 0) / city.radiance.length,
-                radiance_corrected: city.radiance_corrected.reduce((a, b) => a + b, 0) / city.radiance_corrected.length
+                radiance_corrected: city.radiance_corrected.reduce((a, b) => a + b, 0) / city.radiance_corrected.length,
+                percentage_change: avgPct
             });
         });
         
