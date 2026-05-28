@@ -35,9 +35,9 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Allow demo artifacts under docs/handover
-!docs/handover/viirs_demo_schema_only.sqlite
-!docs/handover/viirs_sample_data.sqlite
+# Allow demo artifacts under docs/sample
+!docs/sample/viirs_demo_schema_only.sqlite
+!docs/sample/viirs_sample_data.sqlite
 
 # Temporary files
 *.tmp

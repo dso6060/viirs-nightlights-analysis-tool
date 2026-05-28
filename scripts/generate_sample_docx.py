@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class HandoverInfo:
+class SampleInfo:
     project_public_name: str
     repo_url: str
     primary_maintainer_name: str
@@ -35,7 +35,7 @@ def _add_numbered(doc, items: list[str]):
         doc.add_paragraph(item, style="List Number")
 
 
-def build_doc(info: HandoverInfo, out_path: Path) -> None:
+def build_doc(info: SampleInfo, out_path: Path) -> None:
     from docx import Document  # python-docx
 
     doc = Document()
@@ -290,8 +290,8 @@ def build_doc(info: HandoverInfo, out_path: Path) -> None:
 
 
 def main() -> int:
-    # Fill values from the current handover context; regenerate later if needed.
-    info = HandoverInfo(
+    # Fill values from the current sample context; regenerate later if needed.
+    info = SampleInfo(
         project_public_name="VIIRS Nightlights Analysis Tool",
         repo_url="https://github.com/dso6060/viirs-nightlights-analysis-tool",
         primary_maintainer_name="Divya Sornaraja",
@@ -306,7 +306,7 @@ def main() -> int:
         tone="friendly",
     )
 
-    out_path = Path("docs/handover") / "VIIRS_Idea_and_Build_Notes_Shared.docx"
+    out_path = Path("docs/sample") / "VIIRS_Idea_and_Build_Notes_Shared.docx"
     build_doc(info, out_path)
     print(f"Wrote: {out_path.resolve()}")
     return 0
