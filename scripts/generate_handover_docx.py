@@ -306,7 +306,7 @@ def main() -> int:
         tone="friendly",
     )
 
-    out_path = Path("docs/handover") / "VIIRS_Maintainer_Handover.docx"
+    out_path = Path("docs/handover") / "VIIRS_Idea_and_Build_Notes_Shared.docx"
     build_doc(info, out_path)
     print(f"Wrote: {out_path.resolve()}")
     return 0
