@@ -100,6 +100,25 @@ class DatabaseManager:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            # Query logging (for building/refreshing hotlist and diagnosing UX)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS query_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    event_type TEXT NOT NULL,
+                    query_text TEXT,
+                    selected_name TEXT,
+                    selected_country TEXT,
+                    ip_hash TEXT,
+                    user_country_hint TEXT,
+                    cache_hit BOOLEAN,
+                    upstream TEXT,
+                    latency_ms REAL,
+                    status TEXT,
+                    error_code TEXT
+                )
+            """)
             
             # Create indexes for better performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_cities_name ON cities(name)")
@@ -107,6 +126,8 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_viirs_city_date ON viirs_data(city_id, date)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_viirs_date ON viirs_data(date)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_test_results_type ON test_results(test_type)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_event_time ON query_logs(event_type, created_at)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_logs_query_text ON query_logs(query_text)")
             
             conn.commit()
             logger.info("Database initialized successfully")
@@ -373,6 +394,62 @@ class DatabaseManager:
             conn.commit()
             logger.info(f"Added {added_count} VIIRS data points for city ID {city_id}")
             return added_count
+
+    def add_query_log(self, event: Dict) -> None:
+        """
+        Best-effort insert into query_logs.
+
+        Expected keys (all optional except event_type):
+          event_type, query_text, selected_name, selected_country, ip_hash,
+          user_country_hint, cache_hit, upstream, latency_ms, status, error_code
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO query_logs
+                    (event_type, query_text, selected_name, selected_country, ip_hash, user_country_hint,
+                     cache_hit, upstream, latency_ms, status, error_code)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.get("event_type"),
+                        event.get("query_text"),
+                        event.get("selected_name"),
+                        event.get("selected_country"),
+                        event.get("ip_hash"),
+                        event.get("user_country_hint"),
+                        1 if event.get("cache_hit") is True else 0 if event.get("cache_hit") is False else None,
+                        event.get("upstream"),
+                        event.get("latency_ms"),
+                        event.get("status"),
+                        event.get("error_code"),
+                    ),
+                )
+                conn.commit()
+        except Exception as e:
+            logger.debug(f"Failed to write query log: {e}")
+            return
+
+    def get_top_queries(self, days: int = 30, limit: int = 100) -> List[Dict]:
+        """Return top query_text strings within the last N days."""
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT query_text, COUNT(*) as cnt
+                FROM query_logs
+                WHERE query_text IS NOT NULL
+                  AND created_at >= datetime('now', ?)
+                GROUP BY query_text
+                ORDER BY cnt DESC
+                LIMIT ?
+                """,
+                (f"-{int(days)} days", int(limit)),
+            )
+            rows = cur.fetchall()
+            return [{"query_text": r[0], "count": r[1]} for r in rows]
     
     def get_viirs_data(self, city_id: int = None, start_date: str = None, end_date: str = None) -> List[Dict]:
         """

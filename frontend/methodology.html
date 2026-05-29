@@ -14,64 +14,69 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
             line-height: 1.7;
-            color: #333;
-            background: #f9f9f9;
+            color: #1a1a1a;
+            background: #f0f0f0;
         }
         
         .container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
-            background: white;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e0e0e0;
         }
         
         header {
-            background: linear-gradient(135deg, #e85d00 0%, #ff7700 100%);
-            color: white;
+            background: #1a1a1a;
+            color: #fff;
             padding: 40px 30px;
-            border-radius: 8px 8px 0 0;
             margin: -20px -20px 30px -20px;
+            border-bottom: 1px solid #333;
         }
         
         header h1 {
             font-size: 2.2em;
             margin-bottom: 10px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
         }
         
         header p {
-            opacity: 0.95;
-            font-size: 1.1em;
+            color: #b0b0b0;
+            font-size: 1.05em;
         }
         
         nav {
-            background: #f8f8f8;
+            background: #fafafa;
             padding: 15px 20px;
             margin: -10px -20px 30px -20px;
-            border-bottom: 2px solid #e85d00;
+            border-bottom: 1px solid #d0d0d0;
             position: sticky;
             top: 0;
             z-index: 100;
         }
         
         nav a {
-            color: #e85d00;
+            color: #1a1a1a;
             text-decoration: none;
             margin-right: 20px;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 14px;
         }
         
         nav a:hover {
+            color: #000;
             text-decoration: underline;
         }
         
         .back-link {
             display: inline-block;
             margin-bottom: 20px;
-            color: #e85d00;
+            color: #1a1a1a;
             text-decoration: none;
-            font-weight: 600;
+            font-weight: 500;
+            font-size: 14px;
         }
         
         .back-link:hover {
@@ -79,37 +84,40 @@
         }
         
         h2 {
-            color: #e85d00;
+            color: #1a1a1a;
             font-size: 1.8em;
             margin: 40px 0 15px 0;
             padding-bottom: 10px;
-            border-bottom: 3px solid #e85d00;
+            border-bottom: 2px solid #1a1a1a;
+            font-weight: 600;
         }
         
         h3 {
-            color: #cc5200;
+            color: #333;
             font-size: 1.4em;
             margin: 30px 0 12px 0;
+            font-weight: 600;
         }
         
         h4 {
-            color: #333;
+            color: #1a1a1a;
             font-size: 1.2em;
             margin: 25px 0 10px 0;
         }
         
         p {
             margin: 12px 0;
-            color: #555;
+            color: #444;
         }
         
         a {
-            color: #e85d00;
-            text-decoration: none;
+            color: #1a1a1a;
+            text-decoration: underline;
+            text-underline-offset: 2px;
         }
         
         a:hover {
-            text-decoration: underline;
+            color: #000;
         }
         
         ul, ol {
@@ -124,10 +132,11 @@
         pre {
             background: #f5f5f5;
             padding: 15px;
-            border-left: 4px solid #e85d00;
+            border-left: 4px solid #1a1a1a;
             overflow-x: auto;
             margin: 15px 0;
             border-radius: 4px;
+            border: 1px solid #e0e0e0;
         }
         
         code {
@@ -157,8 +166,8 @@
         }
         
         th {
-            background: #e85d00;
-            color: white;
+            background: #1a1a1a;
+            color: #fff;
             font-weight: 600;
         }
         
@@ -167,40 +176,44 @@
         }
         
         .warning {
-            background: #fff8f0;
-            border-left: 4px solid #ff9800;
+            background: #f5f5f5;
+            border-left: 4px solid #666;
             padding: 15px 20px;
             margin: 20px 0;
             border-radius: 4px;
+            border: 1px solid #e0e0e0;
         }
         
         .warning h4 {
-            color: #e65100;
+            color: #1a1a1a;
             margin-top: 0;
         }
         
         .info {
-            background: #e8f4f8;
-            border-left: 4px solid #2196F3;
+            background: #f8f8f8;
+            border-left: 4px solid #444;
             padding: 15px 20px;
             margin: 20px 0;
             border-radius: 4px;
+            border: 1px solid #e0e0e0;
         }
         
         .success {
-            background: #f1f8f4;
-            border-left: 4px solid #4caf50;
+            background: #f5f5f5;
+            border-left: 4px solid #333;
             padding: 15px 20px;
             margin: 20px 0;
             border-radius: 4px;
+            border: 1px solid #e0e0e0;
         }
         
         .error {
-            background: #ffebee;
-            border-left: 4px solid #f44336;
+            background: #f5f5f5;
+            border-left: 4px solid #1a1a1a;
             padding: 15px 20px;
             margin: 20px 0;
             border-radius: 4px;
+            border: 1px solid #e0e0e0;
         }
         
         blockquote {
@@ -213,21 +226,22 @@
         }
         
         .flow-diagram {
-            background: white;
-            border: 2px solid #e85d00;
+            background: #fafafa;
+            border: 1px solid #ccc;
             padding: 20px;
             margin: 20px 0;
             font-family: monospace;
             white-space: pre;
             overflow-x: auto;
             border-radius: 4px;
+            color: #1a1a1a;
         }
         
         footer {
             margin-top: 60px;
             padding-top: 30px;
-            border-top: 2px solid #e85d00;
-            color: #777;
+            border-top: 1px solid #d0d0d0;
+            color: #666;
             font-size: 0.9em;
             text-align: center;
         }
@@ -287,7 +301,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>📖 Methodology & Data Flow</h1>
+            <h1>Methodology & Data Flow</h1>
             <p>VIIRS Nightlights Analysis Tool - Complete Documentation</p>
             <p style="font-size: 0.9em; opacity: 0.9; margin-top: 10px;">Version 1.0.0 • Last Updated: November 7, 2025</p>
         </header>
@@ -304,6 +318,8 @@
             <a href="#bias-correction">Bias Correction</a>
             <a href="#limitations">Limitations</a>
             <a href="#use-cases">Use Cases</a>
+            <a href="#usage-limits">Usage &amp; limits</a>
+            <a href="#license">License</a>
             <a href="#attribution">Attribution</a>
         </nav>
 
@@ -652,6 +668,81 @@ Corners include ~27% extra area!</pre>
             </div>
         </div>
 
+        <div id="usage-limits">
+            <h2>Usage, fair access &amp; rate limits</h2>
+            <p>
+                This tool is hosted on a <strong>shared, capacity-limited server</strong> so that anyone can explore VIIRS nightlights
+                without an account. To keep the service stable for many visitors, the API applies automatic limits.
+                Defaults below can be changed by the operator via environment variables.
+            </p>
+
+            <h3>Per-visitor (IP) limits</h3>
+            <ul>
+                <li><strong>~60 API requests per minute</strong> per IP address (<code>RATE_LIMIT_PER_MIN</code>, default 60). Excess requests receive <strong>HTTP 429</strong> with a short “retry soon” message.</li>
+                <li>Limits apply across search, autocomplete, and VIIRS data endpoints combined.</li>
+                <li>There is <strong>no user login</strong>; fairness is based on client IP (and optionally <code>X-Forwarded-For</code> when behind a reverse proxy).</li>
+            </ul>
+
+            <h3>Concurrent load on the server</h3>
+            <ul>
+                <li><strong>Up to 4 simultaneous upstream operations</strong> (<code>MAX_INFLIGHT_NETWORK</code>, default 4) for geocoding (OpenStreetMap) and live Google Earth Engine fetches when data is not already cached.</li>
+                <li>If the server is saturated, new network-heavy requests may receive <strong>HTTP 503</strong> (“Server is busy”) until capacity frees up.</li>
+                <li>Preloaded cities and the ~800-place hotlist usually respond from the local cache in milliseconds and do not count as network slots.</li>
+            </ul>
+
+            <h3>Analysis size limits (per request)</h3>
+            <ul>
+                <li><strong>Up to 5 individual cities</strong> in one comparison, <em>or</em> <strong>one predefined cluster</strong> (e.g. Ports of China) with up to <strong>12 places</strong> (<code>MAX_PLACES_PER_REQUEST</code>).</li>
+                <li>Clusters and single-city analyses use the same date-range and export rules as the main app.</li>
+            </ul>
+
+            <h3>What this means in practice</h3>
+            <ul>
+                <li>Normal interactive use (search, add a few cities, play the timeline) should rarely hit limits.</li>
+                <li>Automated scraping, load testing, or many parallel tabs may trigger 429/503 responses—please space out requests.</li>
+                <li>Heavy classroom or workshop use: stagger “Analyze” clicks or run a <a href="https://github.com/dso6060/viirs-nightlights-analysis-tool" target="_blank" rel="noopener">self-hosted copy</a> from the repository.</li>
+            </ul>
+
+            <div class="info">
+                <h4>Hosting your own instance</h4>
+                <p>
+                    Operators can raise limits, add a CDN (see <code>docs/CLOUDFLARE_CDN.md</code> in the repo), and use the prebuilt
+                    <code>viirs_cache_hotlist.db</code> so most users never wait on GEE. Public demo defaults prioritize stability over unlimited throughput.
+                </p>
+            </div>
+        </div>
+
+        <div id="license">
+            <h2>License &amp; open source</h2>
+            <p>
+                Source code and documentation for this project are <strong>open source for non-commercial use</strong>.
+                You may use, study, modify, and share the software for personal, educational, and non-profit research purposes.
+            </p>
+
+            <h3>Not permitted without separate permission</h3>
+            <ul>
+                <li><strong>Commercial use</strong> — selling access, SaaS, paid consulting deliverables derived primarily from this hosted app, or internal revenue-driven use of a fork without a license agreement.</li>
+                <li>Removing copyright, license, or attribution notices from redistributions.</li>
+            </ul>
+
+            <h3>Repository &amp; contributions</h3>
+            <p>
+                Full source, issues, and pull requests:
+                <a href="https://github.com/dso6060/viirs-nightlights-analysis-tool" target="_blank" rel="noopener">github.com/dso6060/viirs-nightlights-analysis-tool</a>
+            </p>
+            <p>
+                The text of the license is in the <code>LICENSE</code> file in that repository. Third-party data (VIIRS, OSM, GEE) remain under their own provider terms.
+            </p>
+
+            <div class="warning">
+                <h4>Disclaimer</h4>
+                <p>
+                    This tool is provided for educational and research purposes. Results use simplified circular analysis zones, not official boundaries.
+                    No warranty is offered regarding accuracy or fitness for a particular decision.
+                </p>
+            </div>
+        </div>
+
         <div id="attribution">
             <h2>📄 License & Attribution</h2>
             
@@ -683,9 +774,17 @@ Corners include ~27% extra area!</pre>
         </div>
 
         <footer>
-            <p><strong>Version 1.0.0</strong> • Last Updated: November 7, 2025</p>
-            <p><a href="index.html">← Back to Analysis Tool</a></p>
-            <p style="margin-top: 20px;">Built with 🛰️ satellite data and ❤️ for data visualization</p>
+            <p><strong>Version 1.0.0</strong> · Last updated: November 7, 2025</p>
+            <p>
+                <a href="index.html">← Back to analysis tool</a>
+                ·
+                <a href="https://github.com/dso6060/viirs-nightlights-analysis-tool" target="_blank" rel="noopener">GitHub</a>
+                ·
+                <a href="#license">License (non-commercial)</a>
+                ·
+                <a href="#usage-limits">Rate limits</a>
+            </p>
+            <p style="margin-top: 12px; font-size: 0.9em;">Open source for personal, educational, and research use.</p>
         </footer>
     </div>
 </body>

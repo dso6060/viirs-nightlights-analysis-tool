@@ -27,11 +27,6 @@
             <h1>🌍 VIIRS Nightlights Analysis Tool</h1>
             <p class="subtitle">Track economic activity through satellite nighttime lights data (2012-2025)</p>
             <p class="data-source">Data: Google Earth Engine (NOAA VIIRS) | Bias correction: Elvidge et al. (2021)</p>
-            <p class="methodology-link" style="margin-top: 10px;">
-                <a href="methodology.html" target="_blank" style="color: #ffffff; text-decoration: underline; font-weight: 600; font-size: 14px;">
-                    📖 Read Complete Methodology & Data Flow →
-                </a>
-            </p>
         </header>
         
         <!-- Search and Controls Section -->
@@ -52,15 +47,29 @@
                     <p class="no-cities-message">No cities selected. Add up to 5 cities for optimal comparison.</p>
                 </div>
                 <p class="info-text" style="font-size: 12px; color: #888; margin-top: 5px;">
-                    💡 Tip: Limit to 5 cities for clear visualization and optimal performance
+                    💡 Tip: Up to 5 cities, or one cluster (ports / industrial) in a single comparison
                 </p>
                 <div class="quick-add-cities" style="margin-top: 10px;">
                     <span style="font-size: 12px; color: #666; margin-right: 8px;">Quick add:</span>
-                    <button class="quick-city-btn" data-city="Mumbai">Mumbai</button>
-                    <button class="quick-city-btn" data-city="Delhi">Delhi</button>
-                    <button class="quick-city-btn" data-city="Bengaluru">Bengaluru</button>
-                    <button class="quick-city-btn" data-city="Chennai">Chennai</button>
-                    <button class="quick-city-btn" data-city="Tiruppur">Tiruppur</button>
+                    <button class="quick-city-btn" data-city="Mumbai" data-country="India">Mumbai</button>
+                    <button class="quick-city-btn" data-city="Delhi" data-country="India">Delhi</button>
+                    <button class="quick-city-btn" data-city="Bengaluru" data-country="India">Bengaluru</button>
+                    <button class="quick-city-btn" data-city="Chennai" data-country="India">Chennai</button>
+                    <button class="quick-city-btn" data-city="Tiruppur" data-country="India">Tiruppur</button>
+                </div>
+                <div class="quick-add-cities quick-add-clusters" style="margin-top: 8px;">
+                    <span class="quick-add-label">Ports:</span>
+                    <button type="button" class="quick-cluster-btn" data-cluster="ports-china">China</button>
+                    <button type="button" class="quick-cluster-btn" data-cluster="ports-india">India</button>
+                    <button type="button" class="quick-cluster-btn" data-cluster="ports-us">US</button>
+                    <button type="button" class="quick-cluster-btn" data-cluster="ports-europe">Europe</button>
+                </div>
+                <div class="quick-add-cities quick-add-clusters" style="margin-top: 6px;">
+                    <span class="quick-add-label">Industrial:</span>
+                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-china">China</button>
+                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-india">India</button>
+                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-us">US</button>
+                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-europe">Europe</button>
                 </div>
             </div>
             
@@ -157,6 +166,7 @@
                         </div>
                     </div>
                     <div id="graph-container"></div>
+                    <div id="playback-data-hint" class="playback-data-hint" hidden aria-live="polite"></div>
                     <div class="graph-footnote" style="margin-top: 10px; font-size: 12px; color: #666; line-height: 1.5;">
                         <strong>Missing data:</strong> Some months are shown as gaps when cloud-free observations are very low
                         (e.g., monsoon/cloudy periods). In those cases we set radiance to <code>null</code> (not 0) to avoid misleading dips.
@@ -240,8 +250,40 @@
                     <h4>Map Elements</h4>
                     <div class="map-elements">
                         <p><strong>Radiance Circles:</strong> Size = radiance intensity, Color = radiance value, Border = percentage change</p>
+                        <p><strong>Analysis radius (dashed ring):</strong> A fixed-distance circle around the geocoded city center—not an official city, district, or port boundary.</p>
                         <p><strong>Percentage:</strong> Change vs the first year (same month). Helps avoid seasonal effects.</p>
                         <p><strong>Gaps / NULL months:</strong> Months with very low cloud-free coverage are treated as <em>missing</em> (NULL) rather than 0.</p>
+                    </div>
+                </div>
+
+                <div class="legend-item legend-disclosure">
+                    <h4>What area does each value represent?</h4>
+                    <div class="map-elements methodology-note">
+                        <p>
+                            <strong>Not a statutory map.</strong> Outlines on this map are <em>approximate analysis zones</em> for orientation only.
+                            They do <strong>not</strong> follow legal city limits, district boundaries, port authorities, or cadastral parcels.
+                        </p>
+                        <p>
+                            <strong>How a place is located:</strong> The app geocodes the name you enter (via OpenStreetMap) to a single center point (latitude/longitude).
+                        </p>
+                        <p>
+                            <strong>How the radius is chosen:</strong> Each place uses a preset radius in kilometres (e.g. larger metros ~15–30&nbsp;km, smaller hubs ~8–12&nbsp;km).
+                            The dashed blue ring is a simple circle around that point—it is <em>not</em> traced from an administrative shapefile.
+                        </p>
+                        <p>
+                            <strong>How VIIRS feeds the graph:</strong> For each month, VIIRS DNB pixels inside a square box (±radius around the center) are averaged with equal weight, then bias-corrected (Elvidge et al., 2021).
+                            Satellite ground spacing is ~750&nbsp;m, so one monthly point summarizes a broad neighbourhood, not a pixel-perfect footprint.
+                        </p>
+                        <p>
+                            <strong>What to expect:</strong> Use this tool for <em>trends over time</em> and <em>broad comparisons</em> between places analyzed the same way—not for exact urban extent, zoning, or official statistics.
+                            Coastal, linear, or irregular cities may include water, farmland, or suburbs in the average.
+                        </p>
+                        <p class="contrib-note">
+                            Open source for non-commercial use. See
+                            <a href="methodology.html#license" target="_blank" rel="noopener">license &amp; usage limits</a>
+                            or the
+                            <a href="https://github.com/dso6060/viirs-nightlights-analysis-tool" target="_blank" rel="noopener">GitHub repository</a>.
+                        </p>
                     </div>
                 </div>
 
@@ -255,16 +297,23 @@
             </div>
         </div>
         
-        <!-- Simple Footer -->
         <footer class="simple-footer">
             <p class="footer-content">
-                <strong>Data:</strong> Google Earth Engine (NOAA VIIRS) | 
-                <strong>Methodology:</strong> Elvidge et al. (2021) | 
-                <strong>Geocoding:</strong> <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a>
-                <br>
-                <a href="methodology.html" target="_blank" style="color: #e85d00; font-weight: 600; margin-top: 10px; display: inline-block;">
-                    📖 Read Complete Methodology, Data Flow & Limitations
-                </a>
+                <strong>Data:</strong> Google Earth Engine (NOAA VIIRS) ·
+                <strong>Bias correction:</strong> Elvidge et al. (2021) ·
+                <strong>Geocoding:</strong> <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap</a>
+            </p>
+            <p class="footer-links">
+                <a href="methodology.html" target="_blank" rel="noopener">Methodology, data flow &amp; limitations</a>
+                <span class="footer-sep">·</span>
+                <a href="methodology.html#usage-limits" target="_blank" rel="noopener">Fair use &amp; rate limits</a>
+                <span class="footer-sep">·</span>
+                <a href="methodology.html#license" target="_blank" rel="noopener">License (non-commercial)</a>
+                <span class="footer-sep">·</span>
+                <a href="https://github.com/dso6060/viirs-nightlights-analysis-tool" target="_blank" rel="noopener">GitHub</a>
+            </p>
+            <p class="footer-note">
+                Free for personal, educational, and research use. Commercial use requires separate permission.
             </p>
         </footer>
     </div>

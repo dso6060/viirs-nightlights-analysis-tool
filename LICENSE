@@ -1,22 +1,41 @@
-MIT License
+VIIRS Nightlights Analysis Tool — Non-Commercial Open Source License
 
 Copyright (c) 2026 Divya Sornaraja
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is granted, free of charge, to any person to use, copy, modify, and
+distribute this software and its documentation for **non-commercial purposes**,
+including personal, educational, and non-profit research use, subject to the
+conditions below.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+## Allowed uses
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+- Use the web application and source code for learning, research, and civic analysis
+- Fork the repository and submit improvements via pull requests
+- Host your own non-commercial instance for a community or classroom (with attribution)
 
+## Not allowed without separate written permission
+
+- **Commercial use** of the software, hosted service, or derivatives (including selling access, SaaS, paid reports, or internal use primarily for revenue generation)
+- Removing license or attribution notices
+- Using the project name or branding to imply endorsement by the authors or data providers
+
+## Attribution
+
+Redistributions of source or derivatives must retain this license, copyright notice,
+and a link to the project repository:
+
+https://github.com/dso6060/viirs-nightlights-analysis-tool
+
+## Data and third-party terms
+
+VIIRS and other geospatial data accessed through this tool remain subject to their
+original provider terms (NOAA/EOG, Google Earth Engine, OpenStreetMap, etc.). This
+license applies to **this project's code and documentation only**, not to upstream data.
+
+## Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. THE AUTHORS ARE NOT
+LIABLE FOR ANY DAMAGES ARISING FROM USE OF THIS SOFTWARE OR FROM DECISIONS BASED ON
+ITS OUTPUT.
+
+For commercial licensing inquiries, open an issue on the GitHub repository above.

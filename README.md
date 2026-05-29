@@ -450,7 +450,9 @@ Contributions welcome! Please:
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is **open source for non-commercial use** (personal, educational, and non-profit research). **Commercial use is not permitted** without separate written permission. See [LICENSE](LICENSE) and the [methodology page](frontend/methodology.html#license) for details.
+
+**Repository:** https://github.com/dso6060/viirs-nightlights-analysis-tool
 
 ## 🙏 Acknowledgments
 

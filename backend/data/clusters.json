@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "max_cluster_places": 12,
+  "clusters": [
+    {
+      "id": "ports-china",
+      "label": "Ports of China",
+      "description": "Major Chinese container and coastal ports (preloaded)",
+      "aliases": ["china ports", "chinese ports", "ports china"],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Shanghai", "country": "China" },
+        { "city": "Ningbo", "country": "China" },
+        { "city": "Shenzhen", "country": "China" },
+        { "city": "Guangzhou", "country": "China" },
+        { "city": "Qingdao", "country": "China" },
+        { "city": "Tianjin", "country": "China" },
+        { "city": "Xiamen", "country": "China" },
+        { "city": "Dalian", "country": "China" },
+        { "city": "Hong Kong", "country": "Hong Kong" }
+      ]
+    },
+    {
+      "id": "ports-india",
+      "label": "Ports of India",
+      "description": "Major Indian seaports (preloaded)",
+      "aliases": ["india ports", "indian ports", "ports india"],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Mumbai", "country": "India" },
+        { "city": "Chennai", "country": "India" },
+        { "city": "Kolkata", "country": "India" },
+        { "city": "Visakhapatnam", "country": "India" },
+        { "city": "Kochi", "country": "India" }
+      ]
+    },
+    {
+      "id": "industrial-china",
+      "label": "Industrial Clusters of China",
+      "description": "Major Chinese manufacturing and industrial hubs (preloaded)",
+      "aliases": [
+        "china industrial",
+        "chinese industrial",
+        "industrial china",
+        "manufacturing china"
+      ],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Shenzhen", "country": "China" },
+        { "city": "Dongguan", "country": "China" },
+        { "city": "Foshan", "country": "China" },
+        { "city": "Guangzhou", "country": "China" },
+        { "city": "Suzhou", "country": "China" },
+        { "city": "Wuhan", "country": "China" },
+        { "city": "Tianjin", "country": "China" },
+        { "city": "Chongqing", "country": "China" },
+        { "city": "Zhengzhou", "country": "China" },
+        { "city": "Changsha", "country": "China" }
+      ]
+    },
+    {
+      "id": "industrial-india",
+      "label": "Industrial Clusters of India",
+      "description": "Major Indian manufacturing and textile/industrial hubs (preloaded)",
+      "aliases": [
+        "india industrial",
+        "indian industrial",
+        "industrial india",
+        "manufacturing india"
+      ],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Tiruppur", "country": "India" },
+        { "city": "Coimbatore", "country": "India" },
+        { "city": "Ludhiana", "country": "India" },
+        { "city": "Pune", "country": "India" },
+        { "city": "Ahmedabad", "country": "India" },
+        { "city": "Surat", "country": "India" },
+        { "city": "Vadodara", "country": "India" },
+        { "city": "Nashik", "country": "India" },
+        { "city": "Chennai", "country": "India" }
+      ]
+    },
+    {
+      "id": "ports-us",
+      "label": "Ports of the United States",
+      "description": "Major US container and coastal ports (preloaded)",
+      "aliases": ["us ports", "usa ports", "american ports", "ports us", "ports america"],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Los Angeles", "country": "United States" },
+        { "city": "Long Beach", "country": "United States of America" },
+        { "city": "New York", "country": "United States" },
+        { "city": "Norfolk", "country": "United States of America" },
+        { "city": "Houston", "country": "United States" },
+        { "city": "Miami", "country": "United States of America" },
+        { "city": "New Orleans", "country": "United States of America" },
+        { "city": "Jacksonville", "country": "United States" },
+        { "city": "Seattle", "country": "United States" },
+        { "city": "Portland", "country": "United States of America" }
+      ]
+    },
+    {
+      "id": "ports-europe",
+      "label": "Ports of Europe",
+      "description": "Major European container and seaports (preloaded)",
+      "aliases": ["europe ports", "european ports", "ports europe", "eu ports"],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Rotterdam", "country": "Netherlands" },
+        { "city": "Hamburg", "country": "Germany" },
+        { "city": "Antwerpen", "country": "Belgium" },
+        { "city": "Amsterdam", "country": "Netherlands" },
+        { "city": "Bremen", "country": "Germany" },
+        { "city": "Barcelona", "country": "Spain" },
+        { "city": "Marseille", "country": "France" },
+        { "city": "Valencia", "country": "Spain" },
+        { "city": "Bilbao", "country": "Spain" },
+        { "city": "Liverpool", "country": "United Kingdom" }
+      ]
+    },
+    {
+      "id": "industrial-us",
+      "label": "Industrial Clusters of the United States",
+      "description": "Major US manufacturing and industrial metros (preloaded)",
+      "aliases": [
+        "us industrial",
+        "usa industrial",
+        "american industrial",
+        "industrial us",
+        "manufacturing us"
+      ],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Houston", "country": "United States" },
+        { "city": "Detroit", "country": "United States of America" },
+        { "city": "Cleveland", "country": "United States of America" },
+        { "city": "Pittsburgh", "country": "United States of America" },
+        { "city": "Chicago", "country": "United States" },
+        { "city": "Cincinnati", "country": "United States of America" },
+        { "city": "Milwaukee", "country": "United States of America" },
+        { "city": "Indianapolis", "country": "United States of America" },
+        { "city": "Dallas", "country": "United States" },
+        { "city": "Atlanta", "country": "United States of America" }
+      ]
+    },
+    {
+      "id": "industrial-europe",
+      "label": "Industrial Clusters of Europe",
+      "description": "Major European manufacturing and industrial hubs (preloaded)",
+      "aliases": [
+        "europe industrial",
+        "european industrial",
+        "industrial europe",
+        "eu industrial",
+        "manufacturing europe"
+      ],
+      "exempt_city_limit": true,
+      "places": [
+        { "city": "Munich", "country": "Germany" },
+        { "city": "Milan", "country": "Italy" },
+        { "city": "Stuttgart", "country": "Germany" },
+        { "city": "Turin", "country": "Italy" },
+        { "city": "Lyon", "country": "France" },
+        { "city": "Duisburg", "country": "Germany" },
+        { "city": "Birmingham", "country": "United Kingdom" },
+        { "city": "Leeds", "country": "United Kingdom" },
+        { "city": "Cologne", "country": "Germany" },
+        { "city": "Mannheim", "country": "Germany" }
+      ]
+    }
+  ]
+}

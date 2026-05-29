@@ -19,9 +19,16 @@ class VIIRSApp {
         this.isPlaying = false;
         this.playSpeed = 1.0;
         this.playInterval = null;
-        this.selectedCities = []; // Array to store selected cities
-        this.selectedCity = null; // Currently selected city from autocomplete
+        this.selectedCities = []; // [{ city, country, label }]
+        this.selectedCity = null; // Currently highlighted autocomplete place
         this.searchTimeout = null; // For debouncing search
+        this.hotlistPlaces = []; // ~800 preloaded places for instant suggest
+        this.placeClusters = []; // e.g. Ports of China / India
+        this.activeCluster = null; // { id, label } when a cluster is loaded
+        this.maxIndividualCities = 5;
+        this.maxPlacesPerRequest = 12;
+        this.autocompleteResults = [];
+        this.autocompleteHighlight = -1;
         
         // Visualization instances
         this.mapViz = null;
@@ -39,6 +46,8 @@ class VIIRSApp {
         
         // Fetch latest available data
         await this.fetchLatestAvailable();
+        await this.loadHotlistDictionary();
+        await this.loadPlaceClusters();
         
         // Set up event listeners
         this.setupEventListeners();
@@ -97,6 +106,9 @@ class VIIRSApp {
         searchInput.addEventListener('input', (e) => {
             this.handleSearchInput(e.target.value);
         });
+        searchInput.addEventListener('keydown', (e) => {
+            this.handleSearchKeydown(e);
+        });
         
         // Add city button
         document.getElementById('add-city-btn').addEventListener('click', () => {
@@ -107,9 +119,16 @@ class VIIRSApp {
         document.querySelectorAll('.quick-city-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const cityName = e.target.dataset.city;
-                if (cityName && !this.selectedCities.includes(cityName)) {
-                    this.selectedCities.push(cityName);
-                    this.renderSelectedCities();
+                const country = e.target.dataset.country || null;
+                this.addPlaceToSelection({ city: cityName, country, label: country ? `${cityName}, ${country}` : cityName });
+            });
+        });
+
+        document.querySelectorAll('.quick-cluster-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const clusterId = e.target.dataset.cluster;
+                if (clusterId) {
+                    this.addClusterToSelection(clusterId);
                 }
             });
         });
@@ -153,45 +172,172 @@ class VIIRSApp {
         
     }
     
+    async loadHotlistDictionary() {
+        try {
+            const response = await fetch(`${this.API_BASE_URL}/hotlist`);
+            if (!response.ok) {
+                console.warn('Hotlist dictionary unavailable:', response.status);
+                return;
+            }
+            const data = await response.json();
+            this.hotlistPlaces = (data.places || []).map((p) => ({
+                city: p.city,
+                country: p.country,
+                admin1: p.admin1,
+                display_name: p.display_name || `${p.city}, ${p.country}`,
+                lat: p.lat,
+                lon: p.lon,
+                source: 'hotlist',
+            }));
+            console.log(`Loaded hotlist dictionary: ${this.hotlistPlaces.length} places`);
+        } catch (error) {
+            console.warn('Failed to load hotlist dictionary:', error);
+        }
+    }
+
+    async loadPlaceClusters() {
+        try {
+            const response = await fetch(`${this.API_BASE_URL}/clusters`);
+            if (!response.ok) {
+                console.warn('Place clusters unavailable:', response.status);
+                return;
+            }
+            const data = await response.json();
+            this.placeClusters = data.clusters || [];
+            if (data.max_individual_places) {
+                this.maxIndividualCities = data.max_individual_places;
+            }
+            if (data.max_places_per_request) {
+                this.maxPlacesPerRequest = data.max_places_per_request;
+            }
+            console.log(`Loaded ${this.placeClusters.length} place clusters`);
+        } catch (error) {
+            console.warn('Failed to load place clusters:', error);
+        }
+    }
+
+    searchClusters(query, limit = 3) {
+        const q = query.trim().toLowerCase();
+        if (q.length < 2 || !this.placeClusters.length) {
+            return [];
+        }
+
+        const scored = [];
+        for (const cluster of this.placeClusters) {
+            const label = (cluster.label || '').toLowerCase();
+            const desc = (cluster.description || '').toLowerCase();
+            const aliases = (cluster.aliases || []).map((a) => a.toLowerCase());
+
+            let score = 0;
+            if (label.startsWith(q) || label.includes(q)) {
+                score = 25;
+            } else if (aliases.some((a) => a.includes(q) || q.includes(a))) {
+                score = 20;
+            } else if (desc.includes(q)) {
+                score = 6;
+            } else {
+                continue;
+            }
+
+            scored.push({ cluster, score });
+        }
+
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, limit).map((s) => ({
+            type: 'cluster',
+            cluster_id: s.cluster.id,
+            label: s.cluster.label,
+            description: s.cluster.description,
+            place_count: s.cluster.place_count,
+            display_name: `${s.cluster.label} (${s.cluster.place_count} places)`,
+            source: 'cluster',
+        }));
+    }
+
+    getClusterById(clusterId) {
+        return this.placeClusters.find((c) => c.id === clusterId);
+    }
+
+    countIndividualPlaces() {
+        return this.selectedCities.filter((p) => !p.clusterId).length;
+    }
+
+    searchHotlist(query, limit = 8) {
+        const q = query.trim().toLowerCase();
+        if (q.length < 2 || !this.hotlistPlaces.length) {
+            return [];
+        }
+
+        const scored = [];
+        for (const place of this.hotlistPlaces) {
+            const name = (place.city || '').toLowerCase();
+            const country = (place.country || '').toLowerCase();
+            const display = (place.display_name || '').toLowerCase();
+
+            let score = 0;
+            if (name.startsWith(q)) {
+                score = 20;
+            } else if (name.split(/\s+/)[0].startsWith(q)) {
+                score = 15;
+            } else if (name.includes(q)) {
+                score = 8;
+            } else if (display.includes(q)) {
+                score = 4;
+            } else {
+                continue;
+            }
+
+            scored.push({ place, score });
+        }
+
+        scored.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return a.place.display_name.localeCompare(b.place.display_name);
+        });
+
+        return scored.slice(0, limit).map((s) => s.place);
+    }
+
     async handleSearchInput(query) {
-        // Clear previous timeout
         if (this.searchTimeout) {
             clearTimeout(this.searchTimeout);
         }
-        
+
         if (query.length < 2) {
             this.hideAutocomplete();
             return;
         }
-        
-        // Debounce search - wait 300ms after user stops typing
+
+        const clusterHits = this.searchClusters(query, 2);
+        const localHits = this.searchHotlist(query, 8);
+        const combined = [...clusterHits, ...localHits];
+        if (combined.length > 0) {
+            this.showAutocomplete(combined);
+            return;
+        }
+
         this.searchTimeout = setTimeout(async () => {
             try {
-                // First try predefined cities for faster results
-                const predefinedResults = this.searchPredefinedCities(query);
-                if (predefinedResults.length > 0) {
-                    this.showAutocomplete(predefinedResults);
-                    return;
+                if (!this.hotlistPlaces.length) {
+                    const suggestRes = await fetch(
+                        `${this.API_BASE_URL}/suggest?q=${encodeURIComponent(query)}&limit=8`
+                    );
+                    if (suggestRes.ok) {
+                        const suggestData = await suggestRes.json();
+                        if (suggestData.results?.length) {
+                            this.showAutocomplete(suggestData.results);
+                            return;
+                        }
+                    }
                 }
-                
-                // Fallback to API search for other cities
+
                 const response = await fetch(
-                    `${this.API_BASE_URL}/search?q=${encodeURIComponent(query)}&limit=5`
+                    `${this.API_BASE_URL}/search?q=${encodeURIComponent(query)}&limit=8`
                 );
                 const data = await response.json();
-                
+
                 if (data.results && data.results.length > 0) {
-                    // Filter for better results (prioritize cities over other places)
-                    const filteredResults = data.results.filter(result => 
-                        result.raw && result.raw.class === 'place' && 
-                        ['city', 'town', 'village'].includes(result.raw.type)
-                    );
-                    
-                    if (filteredResults.length > 0) {
-                        this.showAutocomplete(filteredResults);
-                    } else {
-                        this.hideAutocomplete();
-                    }
+                    this.showAutocomplete(data.results);
                 } else {
                     this.hideAutocomplete();
                 }
@@ -199,109 +345,288 @@ class VIIRSApp {
                 console.error('Search error:', error);
                 this.hideAutocomplete();
             }
-        }, 300);
+        }, 250);
     }
-    
-    searchPredefinedCities(query) {
-        const predefinedCities = [
-            { city: 'Mumbai', country: 'India', lat: 19.0760, lon: 72.8777, display_name: 'Mumbai, India' },
-            { city: 'Delhi', country: 'India', lat: 28.7041, lon: 77.1025, display_name: 'Delhi, India' },
-            { city: 'Bengaluru', country: 'India', lat: 12.9716, lon: 77.5946, display_name: 'Bengaluru, India' },
-            { city: 'Chennai', country: 'India', lat: 13.0827, lon: 80.2707, display_name: 'Chennai, India' },
-            { city: 'Tiruppur', country: 'India', lat: 11.1085, lon: 77.3411, display_name: 'Tiruppur, India' },
-            { city: 'Kolkata', country: 'India', lat: 22.5726, lon: 88.3639, display_name: 'Kolkata, India' },
-            { city: 'Hyderabad', country: 'India', lat: 17.3850, lon: 78.4867, display_name: 'Hyderabad, India' },
-            { city: 'Pune', country: 'India', lat: 18.5204, lon: 73.8567, display_name: 'Pune, India' },
-            { city: 'Ahmedabad', country: 'India', lat: 23.0225, lon: 72.5714, display_name: 'Ahmedabad, India' },
-            { city: 'Jaipur', country: 'India', lat: 26.9124, lon: 75.7873, display_name: 'Jaipur, India' }
-        ];
-        
-        const queryLower = query.toLowerCase();
-        return predefinedCities.filter(city => 
-            city.city.toLowerCase().includes(queryLower) ||
-            city.display_name.toLowerCase().includes(queryLower)
-        ).slice(0, 5);
+
+    handleSearchKeydown(e) {
+        const dropdown = document.getElementById('autocomplete-dropdown');
+        if (!dropdown.classList.contains('active') || !this.autocompleteResults.length) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.addSelectedCity();
+            }
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.autocompleteHighlight = Math.min(
+                this.autocompleteHighlight + 1,
+                this.autocompleteResults.length - 1
+            );
+            this.renderAutocompleteHighlight();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.autocompleteHighlight = Math.max(this.autocompleteHighlight - 1, 0);
+            this.renderAutocompleteHighlight();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const pick = this.autocompleteResults[this.autocompleteHighlight] || this.autocompleteResults[0];
+            if (pick) {
+                if (pick.type === 'cluster') {
+                    this.addClusterToSelection(pick.cluster_id);
+                    document.getElementById('city-search').value = '';
+                    this.hideAutocomplete();
+                } else {
+                    this.selectAutocompleteResult(pick);
+                    this.addSelectedCity();
+                }
+            }
+        } else if (e.key === 'Escape') {
+            this.hideAutocomplete();
+        }
     }
-    
+
+    selectAutocompleteResult(result) {
+        if (result.type === 'cluster') {
+            this.selectedCity = result;
+            document.getElementById('city-search').value = result.label;
+            document.getElementById('city-search').dataset.country = '';
+            return;
+        }
+        this.selectedCity = result;
+        document.getElementById('city-search').value = result.city;
+        document.getElementById('city-search').dataset.country = result.country || '';
+    }
+
+    renderAutocompleteHighlight() {
+        const dropdown = document.getElementById('autocomplete-dropdown');
+        const items = dropdown.querySelectorAll('.autocomplete-item');
+        items.forEach((el, idx) => {
+            el.classList.toggle('active', idx === this.autocompleteHighlight);
+        });
+        if (items[this.autocompleteHighlight]) {
+            this.selectedCity = this.autocompleteResults[this.autocompleteHighlight];
+        }
+    }
+
     showAutocomplete(results) {
+        this.autocompleteResults = results;
+        this.autocompleteHighlight = 0;
+
         const dropdown = document.getElementById('autocomplete-dropdown');
         dropdown.innerHTML = '';
         dropdown.classList.add('active');
-        
-        results.forEach(result => {
+
+        results.forEach((result, index) => {
             const item = document.createElement('div');
-            item.className = 'autocomplete-item';
-            item.textContent = result.display_name || `${result.city}, ${result.country}`;
-            
+            item.className = 'autocomplete-item' + (index === 0 ? ' active' : '');
+            const isCluster = result.type === 'cluster';
+            const label = result.display_name || `${result.city}, ${result.country}`;
+            const tag = isCluster ? ' — cluster' : (result.source === 'hotlist' ? ' (cached)' : '');
+            item.classList.toggle('autocomplete-item-cluster', isCluster);
+            item.textContent = `${label}${tag}`;
+
             item.addEventListener('click', () => {
-                document.getElementById('city-search').value = result.city;
-                this.selectedCity = result;
-                this.hideAutocomplete();
+                if (isCluster) {
+                    this.addClusterToSelection(result.cluster_id);
+                    document.getElementById('city-search').value = '';
+                    this.hideAutocomplete();
+                } else {
+                    this.selectAutocompleteResult(result);
+                    this.hideAutocomplete();
+                }
             });
-            
+
+            item.addEventListener('mouseenter', () => {
+                this.autocompleteHighlight = index;
+                this.renderAutocompleteHighlight();
+            });
+
             dropdown.appendChild(item);
         });
+
+        if (results.length > 0) {
+            this.selectedCity = results[0];
+        }
     }
-    
+
     hideAutocomplete() {
         const dropdown = document.getElementById('autocomplete-dropdown');
         dropdown.classList.remove('active');
+        this.autocompleteResults = [];
+        this.autocompleteHighlight = -1;
     }
-    
+
+    placeKey(place) {
+        return `${place.city}__${place.country || ''}`.toLowerCase();
+    }
+
+    isPlaceSelected(place) {
+        const key = this.placeKey(place);
+        return this.selectedCities.some((p) => this.placeKey(p) === key);
+    }
+
+    addClusterToSelection(clusterId) {
+        const cluster = this.getClusterById(clusterId);
+        if (!cluster) {
+            this.showError('Unknown place cluster');
+            return;
+        }
+
+        if (this.activeCluster && this.activeCluster.id !== clusterId) {
+            this.showError('Remove the current cluster before adding another');
+            return;
+        }
+
+        if (this.countIndividualPlaces() > 0) {
+            this.showError('Clear individual cities first, or remove them before adding a cluster');
+            return;
+        }
+
+        const members = (cluster.places || []).map((p) => ({
+            city: p.city,
+            country: p.country || null,
+            label: p.display_name || `${p.city}, ${p.country}`,
+            clusterId: cluster.id,
+        }));
+
+        if (members.length > this.maxPlacesPerRequest) {
+            this.showError(`This cluster has too many places (max ${this.maxPlacesPerRequest})`);
+            return;
+        }
+
+        this.selectedCities = members;
+        this.activeCluster = { id: cluster.id, label: cluster.label };
+        this.renderSelectedCities();
+        this.hideError();
+    }
+
+    addPlaceToSelection(place) {
+        if (!place || !place.city) {
+            return;
+        }
+
+        if (this.activeCluster) {
+            this.showError('Remove the cluster first to add individual cities');
+            return;
+        }
+
+        if (this.countIndividualPlaces() >= this.maxIndividualCities) {
+            this.showError(`Maximum ${this.maxIndividualCities} cities can be selected (use a cluster for more)`);
+            return;
+        }
+
+        if (this.isPlaceSelected(place)) {
+            this.showError('City already selected');
+            return;
+        }
+
+        const normalized = {
+            city: place.city,
+            country: place.country || null,
+            label: place.label || place.display_name || `${place.city}${place.country ? `, ${place.country}` : ''}`,
+            clusterId: null,
+        };
+
+        this.selectedCities.push(normalized);
+        this.renderSelectedCities();
+        this.hideError();
+    }
+
     addSelectedCity() {
         const searchInput = document.getElementById('city-search');
         const cityName = searchInput.value.trim();
-        
+
         if (!cityName) {
             this.showError('Please enter a city name or coordinates');
             return;
         }
-        
-        if (this.selectedCities.length >= 5) {
-            this.showError('Maximum 5 cities can be selected for comparison');
+
+        if (this.selectedCity?.type === 'cluster') {
+            this.addClusterToSelection(this.selectedCity.cluster_id);
+            searchInput.value = '';
+            this.selectedCity = null;
+            this.hideAutocomplete();
             return;
         }
-        
-        // Check if city is already selected
-        if (this.selectedCities.includes(cityName)) {
-            this.showError('City already selected');
-            return;
+
+        if (this.selectedCity && this.selectedCity.city) {
+            this.addPlaceToSelection({
+                city: this.selectedCity.city,
+                country: this.selectedCity.country,
+                label: this.selectedCity.display_name || `${this.selectedCity.city}, ${this.selectedCity.country}`,
+            });
+        } else {
+            const clusterHit = this.searchClusters(cityName, 1)[0];
+            if (clusterHit) {
+                this.addClusterToSelection(clusterHit.cluster_id);
+            } else {
+                const hotHit = this.searchHotlist(cityName, 1)[0];
+                if (hotHit) {
+                    this.addPlaceToSelection(hotHit);
+                } else {
+                    this.addPlaceToSelection({ city: cityName, country: searchInput.dataset.country || null, label: cityName });
+                }
+            }
         }
-        
-        this.selectedCities.push(cityName);
-        this.renderSelectedCities();
-        searchInput.value = ''; // Clear input
+
+        searchInput.value = '';
+        searchInput.dataset.country = '';
+        this.selectedCity = null;
         this.hideAutocomplete();
     }
-    
-    removeSelectedCity(cityName) {
-        this.selectedCities = this.selectedCities.filter(city => city !== cityName);
+
+    removeSelectedCity(placeKey) {
+        const removed = this.selectedCities.find((p) => this.placeKey(p) === placeKey);
+        this.selectedCities = this.selectedCities.filter((p) => this.placeKey(p) !== placeKey);
+        if (removed?.clusterId && !this.selectedCities.some((p) => p.clusterId === removed.clusterId)) {
+            this.activeCluster = null;
+        }
         this.renderSelectedCities();
     }
-    
+
+    removeActiveCluster() {
+        this.selectedCities = [];
+        this.activeCluster = null;
+        this.renderSelectedCities();
+    }
+
     renderSelectedCities() {
         const container = document.getElementById('selected-cities-container');
         container.innerHTML = '';
-        
+
         if (this.selectedCities.length === 0) {
-            container.innerHTML = '<p class="no-cities-message">No cities selected. Add up to 5 cities.</p>';
+            container.innerHTML = '<p class="no-cities-message">No cities selected. Add up to 5 cities, or pick a cluster.</p>';
             return;
         }
-        
-        this.selectedCities.forEach(city => {
+
+        if (this.activeCluster) {
+            const div = document.createElement('div');
+            div.classList.add('selected-city-tag', 'selected-cluster-tag');
+            div.innerHTML = `
+                <span><strong>${this.activeCluster.label}</strong> — ${this.selectedCities.length} places</span>
+                <button class="remove-city-button" data-cluster="1" title="Remove cluster">×</button>
+            `;
+            container.appendChild(div);
+            div.querySelector('[data-cluster]').addEventListener('click', () => this.removeActiveCluster());
+            return;
+        }
+
+        this.selectedCities.forEach((place) => {
+            const key = this.placeKey(place);
             const div = document.createElement('div');
             div.classList.add('selected-city-tag');
             div.innerHTML = `
-                <span>${city}</span>
-                <button class="remove-city-button" data-city="${city}">×</button>
+                <span>${place.label}</span>
+                <button class="remove-city-button" data-key="${key}">×</button>
             `;
             container.appendChild(div);
         });
-        
-        // Add event listeners for remove buttons
-        container.querySelectorAll('.remove-city-button').forEach(button => {
+
+        container.querySelectorAll('.remove-city-button[data-key]').forEach((button) => {
             button.addEventListener('click', (e) => {
-                this.removeSelectedCity(e.target.dataset.city);
+                this.removeSelectedCity(e.target.dataset.key);
             });
         });
     }
@@ -328,40 +653,44 @@ class VIIRSApp {
         }
         
         // Show loading
+        this.hideError();
         this.showLoading('Fetching VIIRS data...');
+        if (this.mapViz) {
+            this.mapViz.setCalibrating(true);
+        }
         
         try {
             let response;
             
+            const datePayload = {
+                start_month: startMonth,
+                start_year: startYear,
+                end_month: endMonth,
+                end_year: endYear,
+            };
+
             if (this.selectedCities.length === 1) {
-                // Single city request
+                const place = this.selectedCities[0];
                 response = await fetch(`${this.API_BASE_URL}/viirs/city`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        city: this.selectedCities[0],
-                        start_month: startMonth,
-                        start_year: startYear,
-                        end_month: endMonth,
-                        end_year: endYear
-                    })
+                        city: place.city,
+                        country: place.country || null,
+                        ...datePayload,
+                    }),
                 });
             } else {
-                // Multi-city request
-                response = await fetch(`${this.API_BASE_URL}/viirs/cities`, {
+                response = await fetch(`${this.API_BASE_URL}/viirs/places`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        cities: this.selectedCities,
-                        start_month: startMonth,
-                        start_year: startYear,
-                        end_month: endMonth,
-                        end_year: endYear
-                    })
+                        places: this.selectedCities.map((p) => ({
+                            city: p.city,
+                            country: p.country || null,
+                        })),
+                        ...datePayload,
+                    }),
                 });
             }
             
@@ -375,6 +704,7 @@ class VIIRSApp {
             this.hideLoading();
             
             if (result.status === 'success') {
+                this.hideError();
                 this.processData(result);
                 this.showVisualizations();
             } else {
@@ -382,6 +712,9 @@ class VIIRSApp {
             }
         } catch (error) {
             this.hideLoading();
+            if (this.mapViz) {
+                this.mapViz.setCalibrating(false);
+            }
             this.showError(error.message);
         }
     }
@@ -451,11 +784,24 @@ class VIIRSApp {
             cityData.forEach(point => {
                 const [year, month] = point.date.split('-');
                 const baseline = baselineByMonth[month];
+
+                // Baseline year months compare to themselves → always ~0% and misleading on the map
+                if (year === firstYear) {
+                    point.percentage_change = null;
+                    point.percentage_change_ready = false;
+                    point.is_baseline_year = true;
+                    return;
+                }
                 
                 if (baseline && baseline > 0) {
                     point.percentage_change = ((point.radiance_corrected - baseline) / baseline) * 100;
+                    point.percentage_change_ready = true;
+                    point.is_baseline_year = false;
                 } else {
-                    point.percentage_change = 0;
+                    // Not ready / no baseline for this month — avoid showing misleading 0.0%
+                    point.percentage_change = null;
+                    point.percentage_change_ready = false;
+                    point.is_baseline_year = false;
                 }
             });
         });
@@ -483,10 +829,21 @@ class VIIRSApp {
         if (!this.mapViz) {
             this.mapViz = new MapVisualization('map-container');
         }
+        this.mapViz.setCalibrating(false);
         
         // Set up map-to-graph interaction
         this.mapViz.onCitySelected = (cityName) => {
             this.focusOnCityInGraph(cityName);
+        };
+
+        this.mapViz.onVisibleCitiesChanged = (visibleCities) => {
+            if (this.graphViz) {
+                this.graphViz.updateVisibleCities(visibleCities);
+                const currentDate = this.dates[this.currentDateIndex];
+                if (currentDate) {
+                    this.graphViz.updateTimeline(currentDate, this.getMonthDataStatus(currentDate));
+                }
+            }
         };
         
         // Check if we need to reinitialize the map (single city vs multi-city)
@@ -494,10 +851,9 @@ class VIIRSApp {
         const wasMultiCity = this.mapViz.isMultiCity;
         
         if (isMultiCity !== wasMultiCity) {
-            // Data structure changed, reinitialize map
+            this.mapViz.destroyMap();
             this.mapViz.initialize(this.cityInfo, this.data, this.dates);
         } else {
-            // Same structure, just update data
             this.mapViz.updateData(this.cityInfo, this.data, this.dates);
         }
         
@@ -510,6 +866,9 @@ class VIIRSApp {
             `${this.cityInfo.length} Cities` : 
             this.cityInfo.city;
         this.graphViz.initialize(this.data, this.dates, cityName);
+        if (this.mapViz) {
+            this.graphViz.updateVisibleCities(this.mapViz.getVisibleCityNames());
+        }
         
         // Initialize data export
         if (!this.dataExport) {
@@ -537,8 +896,24 @@ class VIIRSApp {
         }, 3000);
     }
     
+    getMonthDataStatus(date) {
+        const monthPoints = (this.data || []).filter((d) => d.date === date);
+        const withData = monthPoints.filter((d) => d.radiance_corrected != null);
+        const missingAtCurrent = monthPoints
+            .filter((d) => d.radiance_corrected == null)
+            .map((d) => d.city);
+
+        return {
+            total: monthPoints.length,
+            validCount: withData.length,
+            missingAtCurrent,
+            allMissing: monthPoints.length > 0 && withData.length === 0,
+        };
+    }
+
     updateVisualizations() {
         const currentDate = this.dates[this.currentDateIndex];
+        const monthStatus = this.getMonthDataStatus(currentDate);
         
         // Update date display
         document.getElementById('current-date-display').textContent = currentDate;
@@ -550,7 +925,7 @@ class VIIRSApp {
         
         // Update graph
         if (this.graphViz) {
-            this.graphViz.updateTimeline(currentDate);
+            this.graphViz.updateTimeline(currentDate, monthStatus);
         }
     }
     
@@ -655,6 +1030,10 @@ class VIIRSApp {
         document.getElementById('analyze-btn').disabled = false;
     }
     
+    hideError() {
+        document.getElementById('error-display').style.display = 'none';
+    }
+
     showError(message) {
         const msg =
             (typeof message === 'string') ? message :

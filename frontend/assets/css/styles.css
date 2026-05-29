@@ -121,8 +121,9 @@ header .data-source {
     color: #333333;
 }
 
-.autocomplete-item:hover {
-    background-color: #f8f8f8;
+.autocomplete-item:hover,
+.autocomplete-item.active {
+    background-color: #fff4ec;
     color: #e85d00;
 }
 
@@ -210,6 +211,40 @@ header .data-source {
     gap: 6px;
 }
 
+.quick-add-label {
+    font-size: 12px;
+    color: #666;
+    margin-right: 4px;
+    min-width: 58px;
+}
+
+.quick-cluster-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    border: 1px dashed #e85d00;
+    border-radius: 16px;
+    background: #fff8f3;
+    color: #c44d00;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.quick-cluster-btn:hover {
+    background: #e85d00;
+    color: #fff;
+    border-style: solid;
+}
+
+.selected-cluster-tag {
+    border-style: dashed;
+    background: #fff8f3;
+}
+
+.autocomplete-item-cluster {
+    font-weight: 600;
+    border-left: 3px solid #e85d00;
+}
+
 /* Static Radiance Circles (no movement, only radius changes) */
 .static-radiance-circle {
     cursor: pointer;
@@ -246,6 +281,32 @@ header .data-source {
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(2px);
     min-width: 120px;
+}
+
+.city-label-missing {
+    background: rgba(60, 60, 60, 0.75);
+    color: #e0e0e0;
+    border-color: rgba(180, 180, 180, 0.45);
+    font-weight: 600;
+}
+
+.static-radiance-circle.missing-month {
+    pointer-events: auto;
+}
+
+.playback-data-hint {
+    margin-top: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #6d4c41;
+    background: #faf6f2;
+    border: 1px solid #e8d5c4;
+    border-radius: 4px;
+}
+
+.playback-data-hint[hidden] {
+    display: none !important;
 }
 
 /* Message animations */
@@ -366,6 +427,37 @@ header .data-source {
     font-size: 12px;
     color: #666;
     line-height: 1.4;
+}
+
+.legend-disclosure {
+    background: #fff8f3;
+    border: 1px solid #f0d4c0;
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.legend-disclosure h4 {
+    color: #8a3b00;
+}
+
+.methodology-note p {
+    line-height: 1.55;
+}
+
+.methodology-note .contrib-note {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #e0c4b0;
+}
+
+.methodology-note a {
+    color: #e85d00;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.methodology-note a:hover {
+    text-decoration: underline;
 }
 
     .quick-city-btn {
@@ -952,9 +1044,9 @@ header .data-source {
 /* Simple Footer Styles */
 .simple-footer {
     background-color: #f8f8f8;
-    border-top: 2px solid #e85d00;
+    border-top: 1px solid #d0d0d0;
     margin-top: 40px;
-    padding: 25px 20px;
+    padding: 22px 20px;
     text-align: center;
     border-radius: 4px;
 }
@@ -962,18 +1054,35 @@ header .data-source {
 .simple-footer .footer-content {
     font-size: 0.9em;
     color: #666666;
+    line-height: 1.7;
+    margin-bottom: 10px;
+}
+
+.simple-footer .footer-links {
+    font-size: 0.9em;
     line-height: 1.8;
+    margin-bottom: 8px;
+}
+
+.simple-footer .footer-sep {
+    color: #bbb;
+    margin: 0 6px;
+}
+
+.simple-footer .footer-note {
+    font-size: 0.8em;
+    color: #888;
+    margin: 0;
 }
 
 .simple-footer a {
-    color: #e85d00;
-    text-decoration: none;
-    transition: color 0.2s;
+    color: #1a1a1a;
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 
 .simple-footer a:hover {
-    color: #cc5200;
-    text-decoration: underline;
+    color: #000;
 }
 
 .simple-footer strong {

@@ -4,13 +4,16 @@ FastAPI application for VIIRS nightlights data service.
 Provides RESTful API endpoints for fetching and processing VIIRS data.
 """
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any, Tuple
 import uvicorn
 from datetime import datetime
 import os
+import time
+import hashlib
+import threading
 
 from noaa_viirs_service import NOAAVIIRSService
 from gee_viirs_service import GEEVIIRSService, GEEServiceConfig
@@ -65,6 +68,160 @@ DATA_SOURCE_LABEL = (
     else "NOAA Earth Observation Group"
 )
 
+HOTLIST_PATH = os.getenv("VIIRS_HOTLIST_PATH", "backend/data/hotlist.json")
+CLUSTERS_PATH = os.getenv("VIIRS_CLUSTERS_PATH", "backend/data/clusters.json")
+_hotlist_cache: Optional[Dict[str, Any]] = None
+_clusters_cache: Optional[Dict[str, Any]] = None
+
+MAX_INDIVIDUAL_PLACES = int(os.getenv("MAX_INDIVIDUAL_PLACES", "5"))
+MAX_PLACES_PER_REQUEST = int(os.getenv("MAX_PLACES_PER_REQUEST", "12"))
+
+# Overload guards (conservative defaults for a "tiny server")
+MAX_INFLIGHT_NETWORK = int(os.getenv("MAX_INFLIGHT_NETWORK", "4"))
+_network_sem = threading.BoundedSemaphore(MAX_INFLIGHT_NETWORK)
+
+RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "60"))
+_rl_lock = threading.Lock()
+_rl_buckets: Dict[str, Tuple[int, float]] = {}  # ip -> (tokens, last_refill_ts)
+
+
+def _client_ip(req: Request) -> str:
+    xff = req.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return (req.client.host if req.client else "") or ""
+
+
+def _ip_hash(ip: str) -> Optional[str]:
+    if not ip:
+        return None
+    return hashlib.sha256(ip.encode("utf-8")).hexdigest()[:16]
+
+
+def _rate_limit_ok(ip: str) -> bool:
+    if not ip:
+        return True
+    now = time.time()
+    refill_rate_per_sec = RATE_LIMIT_PER_MIN / 60.0
+    with _rl_lock:
+        tokens, last = _rl_buckets.get(ip, (RATE_LIMIT_PER_MIN, now))
+        elapsed = max(0.0, now - last)
+        tokens = min(RATE_LIMIT_PER_MIN, tokens + int(elapsed * refill_rate_per_sec))
+        if tokens <= 0:
+            _rl_buckets[ip] = (tokens, now)
+            return False
+        _rl_buckets[ip] = (tokens - 1, now)
+        return True
+
+
+def _acquire_network_slot() -> bool:
+    return _network_sem.acquire(blocking=False)
+
+
+def _release_network_slot() -> None:
+    try:
+        _network_sem.release()
+    except Exception:
+        return
+
+
+def _load_hotlist() -> Dict[str, Any]:
+    global _hotlist_cache
+    if _hotlist_cache is not None:
+        return _hotlist_cache
+    try:
+        import json
+        from pathlib import Path
+
+        p = Path(HOTLIST_PATH)
+        if not p.is_absolute():
+            # Resolve relative to repo root when running from backend/
+            repo_root = Path(__file__).resolve().parents[1]
+            p = repo_root / p
+        _hotlist_cache = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        _hotlist_cache = {"version": 1, "count": 0, "places": []}
+    return _hotlist_cache
+
+
+def _load_clusters() -> Dict[str, Any]:
+    global _clusters_cache
+    if _clusters_cache is not None:
+        return _clusters_cache
+    try:
+        import json
+        from pathlib import Path
+
+        p = Path(CLUSTERS_PATH)
+        if not p.is_absolute():
+            repo_root = Path(__file__).resolve().parents[1]
+            p = repo_root / p
+        _clusters_cache = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        _clusters_cache = {"version": 1, "clusters": []}
+    return _clusters_cache
+
+
+def _place_display_name(place: Dict[str, Any]) -> str:
+    name = str(place.get("name") or "").strip()
+    country = str(place.get("country") or "").strip()
+    admin1 = place.get("admin1")
+    if admin1:
+        return f"{name}, {admin1}, {country}"
+    return f"{name}, {country}" if country else name
+
+
+def _suggest_from_hotlist(query: str, limit: int = 10, country: Optional[str] = None) -> List[Dict]:
+    """Prefix/contains match against preloaded hotlist (no network)."""
+    q = (query or "").strip().lower()
+    if len(q) < 2:
+        return []
+
+    country_norm = (country or "").strip().lower()
+    scored: List[Tuple[int, Dict]] = []
+
+    for place in _load_hotlist().get("places") or []:
+        name = str(place.get("name") or "")
+        ctry = str(place.get("country") or "")
+        admin1 = str(place.get("admin1") or "")
+        name_l = name.lower()
+        ctry_l = ctry.lower()
+        admin_l = admin1.lower()
+        display_l = _place_display_name(place).lower()
+
+        if country_norm and country_norm not in ctry_l and country_norm not in display_l:
+            continue
+
+        score = 0
+        if name_l.startswith(q):
+            score += 20
+        elif name_l.split()[0].startswith(q) if name_l else False:
+            score += 15
+        elif q in name_l:
+            score += 8
+        elif q in display_l:
+            score += 4
+        else:
+            continue
+
+        scored.append(
+            (
+                score,
+                {
+                    "city": name,
+                    "country": ctry,
+                    "admin1": admin1 or None,
+                    "display_name": _place_display_name(place),
+                    "lat": place.get("lat"),
+                    "lon": place.get("lon"),
+                    "source": "hotlist",
+                },
+            )
+        )
+
+    scored.sort(key=lambda t: (-t[0], t[1]["display_name"]))
+    return [item for _, item in scored[:limit]]
+
 
 # Request/Response Models
 class CityRequest(BaseModel):
@@ -78,6 +235,23 @@ class CityRequest(BaseModel):
 
 class MultiCityRequest(BaseModel):
     cities: List[str] = Field(..., max_length=5, description="List of city names (max 5)")
+    start_month: int = Field(1, ge=1, le=12)
+    start_year: int = Field(2019, ge=2012, le=2100)
+    end_month: int = Field(12, ge=1, le=12)
+    end_year: int = Field(2024, ge=2012, le=2100)
+
+
+class PlaceName(BaseModel):
+    city: str = Field(..., description="City name")
+    country: Optional[str] = Field(None, description="Country name (optional)")
+
+
+class MultiPlaceRequest(BaseModel):
+    places: List[PlaceName] = Field(
+        ...,
+        max_length=MAX_PLACES_PER_REQUEST,
+        description=f"List of places (max {MAX_PLACES_PER_REQUEST}; clusters may exceed 5)",
+    )
     start_month: int = Field(1, ge=1, le=12)
     start_year: int = Field(2019, ge=2012, le=2100)
     end_month: int = Field(12, ge=1, le=12)
@@ -116,8 +290,87 @@ def root():
             "POST /viirs/city": "Fetch VIIRS data for a city",
             "POST /viirs/cities": "Fetch VIIRS data for multiple cities",
             "POST /viirs/coordinates": "Fetch VIIRS data for coordinates",
-            "GET /search": "City autocomplete search"
+            "GET /search": "City autocomplete search (hotlist + OSM fallback)",
+            "GET /hotlist": "Preloaded place dictionary for client autocomplete",
+            "GET /suggest": "Hotlist-only autocomplete (no network)",
+            "GET /clusters": "Predefined place clusters (e.g. Ports of China)",
         }
+    }
+
+
+@app.get("/hotlist")
+def get_hotlist():
+    """
+    Return the preloaded hotlist for instant client-side autocomplete.
+    """
+    data = _load_hotlist()
+    places = []
+    for p in data.get("places") or []:
+        places.append(
+            {
+                "city": p.get("name"),
+                "country": p.get("country"),
+                "admin1": p.get("admin1"),
+                "display_name": _place_display_name(p),
+                "lat": p.get("lat"),
+                "lon": p.get("lon"),
+            }
+        )
+    return {
+        "status": "success",
+        "count": len(places),
+        "places": places,
+        "source": "hotlist",
+    }
+
+
+@app.get("/clusters")
+def get_clusters():
+    """Return predefined place clusters for one-click multi-port comparison."""
+    data = _load_clusters()
+    clusters_out = []
+    for c in data.get("clusters") or []:
+        places = c.get("places") or []
+        clusters_out.append(
+            {
+                "id": c.get("id"),
+                "label": c.get("label"),
+                "description": c.get("description"),
+                "aliases": c.get("aliases") or [],
+                "exempt_city_limit": bool(c.get("exempt_city_limit", True)),
+                "place_count": len(places),
+                "places": [
+                    {
+                        "city": p.get("city"),
+                        "country": p.get("country"),
+                        "display_name": f"{p.get('city')}, {p.get('country')}",
+                    }
+                    for p in places
+                ],
+            }
+        )
+    return {
+        "status": "success",
+        "max_individual_places": MAX_INDIVIDUAL_PLACES,
+        "max_places_per_request": data.get("max_cluster_places") or MAX_PLACES_PER_REQUEST,
+        "clusters": clusters_out,
+    }
+
+
+@app.get("/suggest")
+def suggest_places(
+    q: str = Query(..., min_length=2, description="Search query"),
+    limit: int = Query(10, ge=1, le=50),
+    country: Optional[str] = Query(None, description="Optional country filter"),
+):
+    """Hotlist autocomplete without calling OSM."""
+    results = _suggest_from_hotlist(q, limit=limit, country=country)
+    return {
+        "status": "success",
+        "query": q,
+        "results": results,
+        "type": "hotlist",
+        "count": len(results),
     }
 
 
@@ -141,7 +394,7 @@ def get_latest_available():
 
 
 @app.post("/viirs/city")
-def fetch_city_data(request: CityRequest):
+def fetch_city_data(request: CityRequest, http_request: Request):
     """
     Fetch VIIRS data for a single city.
     
@@ -156,6 +409,12 @@ def fetch_city_data(request: CityRequest):
             "metadata": {...}
         }
     """
+    started = time.time()
+    cache_hit = False
+    upstream = "cache"
+    ip = _client_ip(http_request)
+    if not _rate_limit_ok(ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please retry soon.")
     try:
         # Validate date range
         start_date = f"{request.start_year}-{request.start_month:02d}"
@@ -171,6 +430,7 @@ def fetch_city_data(request: CityRequest):
         cached_city = db.get_city_by_name(request.city, request.country)
         city_info = None
         if cached_city:
+            cache_hit = True
             city_info = {
                 "city": cached_city["name"],
                 "country": cached_city["country"],
@@ -182,9 +442,15 @@ def fetch_city_data(request: CityRequest):
                 "place_type": cached_city.get("place_type") or "city",
             }
         else:
+            upstream = "osm+viirs"
+            if not _acquire_network_slot():
+                raise HTTPException(status_code=503, detail="Server is busy. Try again in a moment.")
             # Geocode city (network)
             print(f"Geocoding: {request.city}, {request.country}")
-            city_info = osm_service.geocode_city(request.city, request.country)
+            try:
+                city_info = osm_service.geocode_city(request.city, request.country)
+            finally:
+                _release_network_slot()
             if not city_info:
                 raise HTTPException(
                     status_code=404,
@@ -236,15 +502,22 @@ def fetch_city_data(request: CityRequest):
             ]
 
         if not viirs_data:
+            cache_hit = False
+            upstream = "viirs"
+            if not _acquire_network_slot():
+                raise HTTPException(status_code=503, detail="Server is busy. Try again in a moment.")
             print(f"Fetching VIIRS data from {DATA_SOURCE_LABEL} (cache miss)...")
-            viirs_data = viirs_service.fetch_viirs_for_city(
-                city_name=city_info['city'],
-                lat=city_info['lat'],
-                lon=city_info['lon'],
-                radius_km=city_info['radius_km'],
-                start_date=start_date,
-                end_date=end_date
-            )
+            try:
+                viirs_data = viirs_service.fetch_viirs_for_city(
+                    city_name=city_info["city"],
+                    lat=city_info["lat"],
+                    lon=city_info["lon"],
+                    radius_km=city_info["radius_km"],
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            finally:
+                _release_network_slot()
 
             # Persist to cache DB (best-effort)
             try:
@@ -281,12 +554,53 @@ def fetch_city_data(request: CityRequest):
                 "processing": "On-the-fly",
                 "min_cf_cvg": float(os.getenv("MIN_CF_CVG", "5")),
                 "missing_data_policy": "Months with cloud_free_coverage < MIN_CF_CVG are returned as null radiance to avoid misleading zeros."
-            }
+            },
+            "status_context": {
+                "cache_hit": bool(cache_hit),
+                "network_used": (not cache_hit),
+                "upstream": upstream if (not cache_hit) else "sqlite",
+                "latency_ms": (time.time() - started) * 1000.0,
+            },
         }
     
-    except HTTPException:
+    except HTTPException as he:
+        try:
+            db.add_query_log(
+                {
+                    "event_type": "viirs_city",
+                    "query_text": request.city,
+                    "selected_name": request.city,
+                    "selected_country": request.country,
+                    "ip_hash": _ip_hash(ip),
+                    "cache_hit": cache_hit,
+                    "upstream": upstream,
+                    "latency_ms": (time.time() - started) * 1000.0,
+                    "status": "error",
+                    "error_code": f"http_{he.status_code}",
+                }
+            )
+        except Exception:
+            pass
         raise
     except Exception as e:
+        # Best-effort query log
+        try:
+            db.add_query_log(
+                {
+                    "event_type": "viirs_city",
+                    "query_text": request.city,
+                    "selected_name": request.city,
+                    "selected_country": request.country,
+                    "ip_hash": _ip_hash(ip),
+                    "cache_hit": cache_hit,
+                    "upstream": upstream,
+                    "latency_ms": (time.time() - started) * 1000.0,
+                    "status": "error",
+                    "error_code": "unhandled_exception",
+                }
+            )
+        except Exception:
+            pass
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching data: {str(e)}"
@@ -294,7 +608,7 @@ def fetch_city_data(request: CityRequest):
 
 
 @app.post("/viirs/cities")
-def fetch_multi_city_data(request: MultiCityRequest):
+def fetch_multi_city_data(request: MultiCityRequest, http_request: Request):
     """
     Fetch VIIRS data for multiple cities.
     
@@ -330,6 +644,7 @@ def fetch_multi_city_data(request: MultiCityRequest):
     errors = []
     all_data = []
     
+    started = time.time()
     for city_name in request.cities:
         try:
             # Cache-first: try DB lookup first
@@ -436,12 +751,168 @@ def fetch_multi_city_data(request: MultiCityRequest):
             "bias_correction": "Elvidge et al. (2021)",
             "min_cf_cvg": float(os.getenv("MIN_CF_CVG", "5")),
             "missing_data_policy": "Months with cloud_free_coverage < MIN_CF_CVG are returned as null radiance to avoid misleading zeros."
-        }
+        },
+        "status_context": {
+            "cache_mixed": True,
+            "network_used": any("error" not in (e or {}) for e in (errors or [])),
+            "latency_ms": (time.time() - started) * 1000.0,
+        },
+    }
+
+
+@app.post("/viirs/places")
+def fetch_multi_place_data(request: MultiPlaceRequest, http_request: Request):
+    """
+    Multi-place endpoint that supports country disambiguation for each entry.
+    Preferred for ambiguous names (e.g., Gaza).
+    """
+    max_places = MAX_PLACES_PER_REQUEST
+    if len(request.places) > max_places:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {max_places} places per request",
+        )
+
+    started = time.time()
+    ip = _client_ip(http_request)
+    if not _rate_limit_ok(ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please retry soon.")
+
+    start_date = f"{request.start_year}-{request.start_month:02d}"
+    end_date = f"{request.end_year}-{request.end_month:02d}"
+    if not _validate_date_range(start_date, end_date):
+        raise HTTPException(status_code=400, detail="Start date must be before end date")
+
+    results = []
+    errors = []
+    all_data = []
+
+    for place in request.places:
+        city_name = place.city
+        country_name = place.country
+        try:
+            cached_city = db.get_city_by_name(city_name, country_name)
+            city_info = None
+            viirs_data = []
+
+            if cached_city:
+                city_info = {
+                    "city": cached_city["name"],
+                    "country": cached_city["country"],
+                    "lat": cached_city["latitude"],
+                    "lon": cached_city["longitude"],
+                    "radius_km": cached_city.get("radius_km") or 10.0,
+                    "display_name": cached_city.get("display_name") or "",
+                    "osm_id": cached_city.get("osm_id") or "",
+                    "place_type": cached_city.get("place_type") or "city",
+                }
+                cached_rows = db.get_viirs_data(
+                    city_id=cached_city["id"],
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                min_cf_cvg = float(os.getenv("MIN_CF_CVG", "5"))
+                viirs_data = [
+                    {
+                        "date": r["date"],
+                        "city": r.get("city_name") or city_info["city"],
+                        "country": r.get("country") or city_info["country"],
+                        "latitude": r.get("latitude") or city_info["lat"],
+                        "longitude": r.get("longitude") or city_info["lon"],
+                        "radiance": None
+                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
+                        else r["radiance"],
+                        "radiance_corrected": None
+                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
+                        else r["radiance_corrected"],
+                        "cloud_free_coverage": r.get("cloud_free_coverage"),
+                        "data_quality": "low"
+                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
+                        else "ok",
+                    }
+                    for r in cached_rows
+                ]
+
+            if not viirs_data:
+                if not _acquire_network_slot():
+                    errors.append(
+                        {"city": city_name, "country": country_name, "error": "Server is busy. Try again in a moment."}
+                    )
+                    continue
+                try:
+                    city_info = osm_service.geocode_city(city_name, country_name)
+                finally:
+                    _release_network_slot()
+                if not city_info:
+                    errors.append({"city": city_name, "country": country_name, "error": "Place not found"})
+                    continue
+
+                if not _acquire_network_slot():
+                    errors.append(
+                        {"city": city_name, "country": country_name, "error": "Server is busy. Try again in a moment."}
+                    )
+                    continue
+                try:
+                    viirs_data = viirs_service.fetch_viirs_for_city(
+                        city_name=city_info["city"],
+                        lat=city_info["lat"],
+                        lon=city_info["lon"],
+                        radius_km=city_info["radius_km"],
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                finally:
+                    _release_network_slot()
+
+                try:
+                    city_id = db.add_city(
+                        {
+                            "name": city_name,
+                            "country": city_info["country"],
+                            "lat": city_info["lat"],
+                            "lon": city_info["lon"],
+                            "radius_km": city_info["radius_km"],
+                            "display_name": city_info.get("display_name", ""),
+                            "osm_id": str(city_info.get("osm_id", "")),
+                            "place_type": city_info.get("place_type", "city"),
+                        }
+                    )
+                    db.add_viirs_data(city_id, viirs_data)
+                except Exception:
+                    pass
+
+            for point in viirs_data:
+                point["country"] = city_info["country"]
+
+            results.append(city_info)
+            all_data.extend(viirs_data)
+        except Exception as e:
+            errors.append({"city": city_name, "country": country_name, "error": str(e)})
+
+    return {
+        "status": "success" if results else "error",
+        "cities": results,
+        "data": all_data,
+        "errors": errors if errors else None,
+        "metadata": {
+            "cities_processed": len(results),
+            "cities_failed": len(errors),
+            "total_data_points": len(all_data),
+            "data_source": DATA_SOURCE_LABEL,
+            "bias_correction": "Elvidge et al. (2021)",
+            "min_cf_cvg": float(os.getenv("MIN_CF_CVG", "5")),
+            "missing_data_policy": "Months with cloud_free_coverage < MIN_CF_CVG are returned as null radiance to avoid misleading zeros.",
+        },
+        "status_context": {
+            "cache_mixed": True,
+            "network_used": True,
+            "latency_ms": (time.time() - started) * 1000.0,
+        },
     }
 
 
 @app.post("/viirs/coordinates")
-def fetch_coordinates_data(request: CoordinatesRequest):
+def fetch_coordinates_data(request: CoordinatesRequest, http_request: Request):
     """
     Fetch VIIRS data for specific coordinates.
     
@@ -451,6 +922,11 @@ def fetch_coordinates_data(request: CoordinatesRequest):
     Returns:
         Similar to /viirs/city endpoint
     """
+    started = time.time()
+    upstream = "viirs"
+    ip = _client_ip(http_request)
+    if not _rate_limit_ok(ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please retry soon.")
     try:
         start_date = f"{request.start_year}-{request.start_month:02d}"
         end_date = f"{request.end_year}-{request.end_month:02d}"
@@ -461,24 +937,35 @@ def fetch_coordinates_data(request: CoordinatesRequest):
                 detail="Start date must be before end date"
             )
         
-        # Reverse geocode to get location name
-        location_info = osm_service.reverse_geocode(
-            request.latitude,
-            request.longitude
-        )
+        upstream = "osm+viirs"
+        if not _acquire_network_slot():
+            raise HTTPException(status_code=503, detail="Server is busy. Try again in a moment.")
+        try:
+            # Reverse geocode to get location name
+            location_info = osm_service.reverse_geocode(
+                request.latitude,
+                request.longitude
+            )
+        finally:
+            _release_network_slot()
         
         city_name = location_info['city'] if location_info else "Custom Location"
         country_name = location_info['country'] if location_info else "Unknown"
         
-        # Fetch VIIRS data
-        viirs_data = viirs_service.fetch_viirs_for_city(
-            city_name=city_name,
-            lat=request.latitude,
-            lon=request.longitude,
-            radius_km=request.radius_km,
-            start_date=start_date,
-            end_date=end_date
-        )
+        if not _acquire_network_slot():
+            raise HTTPException(status_code=503, detail="Server is busy. Try again in a moment.")
+        try:
+            # Fetch VIIRS data
+            viirs_data = viirs_service.fetch_viirs_for_city(
+                city_name=city_name,
+                lat=request.latitude,
+                lon=request.longitude,
+                radius_km=request.radius_km,
+                start_date=start_date,
+                end_date=end_date
+            )
+        finally:
+            _release_network_slot()
         
         # Add country
         for point in viirs_data:
@@ -501,7 +988,13 @@ def fetch_coordinates_data(request: CoordinatesRequest):
                 "bias_correction": "Elvidge et al. (2021)",
                 "min_cf_cvg": float(os.getenv("MIN_CF_CVG", "5")),
                 "missing_data_policy": "Months with cloud_free_coverage < MIN_CF_CVG are returned as null radiance to avoid misleading zeros."
-            }
+            },
+            "status_context": {
+                "cache_hit": False,
+                "network_used": True,
+                "upstream": upstream,
+                "latency_ms": (time.time() - started) * 1000.0,
+            },
         }
     
     except HTTPException:
@@ -515,8 +1008,9 @@ def fetch_coordinates_data(request: CoordinatesRequest):
 
 @app.get("/search")
 def search_cities(
+    http_request: Request,
     q: str = Query(..., min_length=2, description="Search query"),
-    limit: int = Query(10, ge=1, le=50, description="Max results")
+    limit: int = Query(10, ge=1, le=50, description="Max results"),
 ):
     """
     Search for cities (autocomplete).
@@ -532,15 +1026,60 @@ def search_cities(
             "results": [...]
         }
     """
+    started = time.time()
+    ip = _client_ip(http_request) if http_request is not None else ""
+    # Note: /search is frequently called while typing; keep rate limit generous.
+    if ip and not _rate_limit_ok(ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please retry soon.")
     try:
         # Check if query is coordinates
         coords = OSMService.parse_coordinate_string(q)
         
+        # Tier 1: hotlist (instant, no network)
+        hotlist_hits = _suggest_from_hotlist(q, limit=limit)
+        if hotlist_hits:
+            try:
+                db.add_query_log(
+                    {
+                        "event_type": "search_hotlist",
+                        "query_text": q,
+                        "status": "ok",
+                        "upstream": "hotlist",
+                        "latency_ms": (time.time() - started) * 1000.0,
+                    }
+                )
+            except Exception:
+                pass
+            return {
+                "status": "success",
+                "query": q,
+                "results": hotlist_hits,
+                "type": "hotlist",
+            }
+
         if coords:
             lat, lon = coords
-            location = osm_service.reverse_geocode(lat, lon)
+            if not _acquire_network_slot():
+                raise HTTPException(status_code=503, detail="Server is busy. Try again in a moment.")
+            try:
+                location = osm_service.reverse_geocode(lat, lon)
+            finally:
+                _release_network_slot()
             
             if location:
+                # Log coordinate search
+                try:
+                    db.add_query_log(
+                        {
+                            "event_type": "search_coordinates",
+                            "query_text": q,
+                            "status": "ok",
+                            "upstream": "osm_reverse",
+                            "latency_ms": (time.time() - started) * 1000.0,
+                        }
+                    )
+                except Exception:
+                    pass
                 return {
                     "status": "success",
                     "query": q,
@@ -549,7 +1088,26 @@ def search_cities(
                 }
         
         # Otherwise, search cities
-        results = osm_service.search_cities(q, limit)
+        if not _acquire_network_slot():
+            raise HTTPException(status_code=503, detail="Server is busy. Try again in a moment.")
+        try:
+            results = osm_service.search_cities(q, limit)
+        finally:
+            _release_network_slot()
+
+        # Log search query
+        try:
+            db.add_query_log(
+                {
+                    "event_type": "search_text",
+                    "query_text": q,
+                    "status": "ok",
+                    "upstream": "osm_search",
+                    "latency_ms": (time.time() - started) * 1000.0,
+                }
+            )
+        except Exception:
+            pass
         
         return {
             "status": "success",
