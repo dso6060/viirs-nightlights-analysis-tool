@@ -4,7 +4,7 @@ An interactive web application for analyzing nighttime lights data from NASA/NOA
 
 ![VIIRS Data](https://img.shields.io/badge/Data-NOAA%20EOG-blue)
 ![Version](https://img.shields.io/badge/Version-1.0.0-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![License](https://img.shields.io/badge/License-Non--commercial%20OSS-black)
 
 ## 🎯 Features
 
@@ -50,7 +50,17 @@ The API will start on `http://localhost:8000`
 
 > Note: This repository is **real-data only**. Any mock/synthetic data generation used during early testing has been removed.
 
-4. **Open the frontend**
+4. **Generate the city hotlist (for autocomplete + clusters)**
+
+The UI uses a ~800-place hotlist for instant autocomplete and predefined clusters. Generate it once:
+
+```bash
+python3 scripts/build_hotlist.py
+```
+
+This creates `backend/data/hotlist.json` locally (it is intentionally not committed to the repo).
+
+5. **Open the frontend**
 
 Open `frontend/index.html` in your web browser, or use a simple HTTP server:
 

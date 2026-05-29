@@ -32,7 +32,17 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 
 > Note: This repository is **real-data only**. Any mock/synthetic data generation used during early testing has been removed.
 
-## Step 3: Open the Frontend
+## Step 3: Generate the Hotlist (Autocomplete + Clusters)
+
+The app uses a ~800-place hotlist for instant autocomplete and predefined clusters. Generate it once from the repo root:
+
+```bash
+python3 scripts/build_hotlist.py
+```
+
+This creates `backend/data/hotlist.json` locally (it is intentionally not committed).
+
+## Step 4: Open the Frontend
 
 ### Option A: Double-click (Easiest)
 
@@ -51,7 +61,7 @@ python -m http.server 8080
 
 Then open: http://localhost:8080
 
-## Step 4: Try Your First Analysis
+## Step 5: Try Your First Analysis
 
 1. **Search**: Type "Mumbai" in the search box
 2. **Date Range**: 
