@@ -33,14 +33,33 @@ An interactive web application for analyzing nighttime lights data from NASA/NOA
 cd /Users/user/Documents/repo/satDataTest
 ```
 
-2. **Install Python dependencies**
+2. **Create a virtualenv (recommended)**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+3. **Install Python dependencies**
 
 ```bash
 cd backend
 pip install -r requirements.txt
 ```
 
-3. **Start the backend server**
+4. **Configure environment variables (recommended)**
+
+Copy `.env.example` to `backend/.env` and adjust paths if needed:
+
+```bash
+cp ../.env.example .env
+```
+
+By default the app runs in **NOAA mode** (`VIIRS_SOURCE=noaa`) and does not require any Google accounts.
+
+If you want to run in **Google Earth Engine mode** (`VIIRS_SOURCE=gee`), follow `docs/GEE_SETUP.md`.
+
+5. **Start the backend server**
 
 ```bash
 python main.py
@@ -50,7 +69,7 @@ The API will start on `http://localhost:8000`
 
 > Note: This repository is **real-data only**. Any mock/synthetic data generation used during early testing has been removed.
 
-4. **Generate the city hotlist (for autocomplete + clusters)**
+6. **Generate the city hotlist (for autocomplete + clusters)**
 
 The UI uses a ~800-place hotlist for instant autocomplete and predefined clusters. Generate it once:
 
@@ -60,7 +79,7 @@ python3 scripts/build_hotlist.py
 
 This creates `backend/data/hotlist.json` locally (it is intentionally not committed to the repo).
 
-5. **Open the frontend**
+7. **Open the frontend**
 
 Open `frontend/index.html` in your web browser, or use a simple HTTP server:
 
@@ -115,6 +134,24 @@ New York
   - 🟢 Green (+5%+): Significant increase
   - 🟡 Yellow (-5% to +5%): Stable
   - 🔴 Red (-5%-): Significant decrease
+
+#### Missing / null months (data quality)
+
+Some months have **very low cloud-free coverage** (e.g., monsoon-heavy periods). To avoid misleading “dips to zero”, this backend treats months with `cloud_free_coverage < MIN_CF_CVG` as **missing**:
+
+- `radiance = null`
+- `radiance_corrected = null`
+
+You can tune the threshold using `MIN_CF_CVG` (see `.env.example`).
+
+#### Map legend & disclosures (matches the hosted app)
+
+- **Analysis radius is approximate**: the dashed ring is a fixed-distance circle around the geocoded center, not an official city/district/port boundary.
+- **Not a statutory map**: shapes are for orientation only and do not follow legal administrative borders.
+- **How the monthly point is computed**: VIIRS pixels in a square bounding box (±radius) are averaged with equal weight, then bias-corrected (Elvidge et al., 2021).
+- **How “% change” is defined**: for each month-of-year, the current value is compared to the same month in the first year of your selected range (the “baseline”), which helps reduce seasonality effects.
+- **Exports include raw and processed**: exports include both `Radiance_Raw` and `Radiance_BiasCorrected`.
+- **Exports include quality flags**: exports include `Data_Quality` and `Null_Reason` so you can see when/why a month is missing.
 
 ## 🔧 API Documentation
 
@@ -417,6 +454,10 @@ The tool includes a pre-processed database of 140 major cities for instant resul
 ```bash
 pip install -r backend/requirements.txt
 ```
+
+### Earth Engine (GEE) mode issues
+
+If you set `VIIRS_SOURCE=gee` and see initialization/auth errors, follow the setup checklist in `docs/GEE_SETUP.md`.
 
 **Error: "Address already in use"**
 ```bash

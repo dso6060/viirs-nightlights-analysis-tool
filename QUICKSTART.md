@@ -14,6 +14,18 @@ pip install -r requirements.txt
 Successfully installed fastapi-0.104.1 uvicorn-0.24.0 rasterio-1.3.9 ...
 ```
 
+## Step 1.5 (Optional but recommended): Configure environment variables
+
+Copy `.env.example` to `backend/.env`:
+
+```bash
+cp ../.env.example .env
+```
+
+By default the app runs in **NOAA mode** (`VIIRS_SOURCE=noaa`) and does not require any Google accounts.
+
+If you want to run in **Google Earth Engine mode** (`VIIRS_SOURCE=gee`), follow `docs/GEE_SETUP.md`.
+
 ## Step 2: Start the Backend Server
 
 ```bash

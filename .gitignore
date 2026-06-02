@@ -41,6 +41,9 @@ Thumbs.db
 # Generated hotlist (build via scripts/build_hotlist.py)
 backend/data/hotlist.json
 
+# Export bundles (generated archives)
+export_bundle/
+
 # Temporary files
 *.tmp
 *.temp

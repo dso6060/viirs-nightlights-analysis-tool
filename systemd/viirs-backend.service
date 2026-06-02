@@ -1,0 +1,39 @@
+[Unit]
+Description=VIIRS Nightlights Backend (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+
+# Create a dedicated user in real deployments (recommended):
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin viirs
+User=www-data
+Group=www-data
+
+WorkingDirectory=/srv/viirs/current/backend
+
+# Load environment (copy .env.example to /etc/viirs/viirs.env)
+EnvironmentFile=/etc/viirs/viirs.env
+
+# Use a venv in /srv/viirs/venv (recommended)
+ExecStart=/srv/viirs/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000 --workers 2
+
+# Reliability
+Restart=always
+RestartSec=2
+
+# Safety limits (tune to your VPS)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/viirs /var/log/viirs
+
+# Resource management (start conservative)
+MemoryMax=1G
+CPUQuota=200%
+TasksMax=200
+
+[Install]
+WantedBy=multi-user.target
+
