@@ -31,6 +31,14 @@ export class MapVisualization {
   /**
    * Map label suffix for % change. Uses "…" until a real value is available.
    */
+    cityDisplayName(obj) {
+        if (!obj) return '';
+        if (obj.display_name) {
+            return String(obj.display_name).split(',')[0].trim();
+        }
+        return obj.city || '';
+    }
+
     formatPercentageLabelSuffix(point) {
         if (point.data_missing) {
             return ' · —';
@@ -348,7 +356,7 @@ export class MapVisualization {
             });
 
             marker.bindPopup(`
-                <strong>${city.city}</strong><br>
+                <strong>${this.cityDisplayName(city)}</strong><br>
                 ${city.country}<br>
                 Lat: ${city.lat.toFixed(4)}, Lon: ${city.lon.toFixed(4)}
             `);
@@ -524,7 +532,7 @@ export class MapVisualization {
 
         let marker;
         let color = '#9e9e9e';
-        let labelText = `${point.city}${this.formatPercentageLabelSuffix(point)}`;
+        let labelText = `${this.cityDisplayName(point)}${this.formatPercentageLabelSuffix(point)}`;
         let labelClass = 'city-label-text';
 
         if (point.data_missing) {
@@ -578,7 +586,7 @@ export class MapVisualization {
             <div style="color: #333; min-width: 200px;">
                 <div style="text-align: center; margin-bottom: 10px;">
                     <div style="font-size: 18px; font-weight: bold; color: ${color};">
-                        ${point.city}
+                        ${this.cityDisplayName(point)}
                     </div>
                     <div style="font-size: 12px; color: #666;">
                         ${point.country}

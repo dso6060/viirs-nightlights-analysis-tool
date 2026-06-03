@@ -14,12 +14,40 @@ import os
 import time
 import hashlib
 import threading
+from pathlib import Path
+
+
+def _load_dotenv() -> None:
+    """Load backend/.env for local dev (gitignored; not used in friedso systemd)."""
+    env_path = Path(__file__).resolve().parent / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
 
 from noaa_viirs_service import NOAAVIIRSService
 from gee_viirs_service import GEEVIIRSService, GEEServiceConfig
 from osm_service import OSMService
 from bias_correction import BiasCorrection
 from database import DatabaseManager
+from study_areas import (
+    load_gulf_study_areas,
+    load_strike_sites,
+    resolve_study_area,
+    study_area_to_city_info,
+    sites_for_cluster_places,
+)
+from place_fetch import fetch_viirs_for_place
 
 
 # Initialize FastAPI app
@@ -33,7 +61,17 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     # IMPORTANT: do not use "*" in production. Set CORS_ORIGINS to your domain(s).
-    allow_origins=[o.strip() for o in (os.getenv("CORS_ORIGINS", "http://localhost:8080,http://localhost").split(",")) if o.strip()],
+    allow_origins=[
+        o.strip()
+        for o in (
+            os.getenv(
+                "CORS_ORIGINS",
+                "http://localhost:8080,http://localhost,http://localhost:8090,"
+                "http://127.0.0.1:8090,http://127.0.0.1",
+            ).split(",")
+        )
+        if o.strip()
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -337,6 +375,11 @@ def get_clusters():
                 "label": c.get("label"),
                 "description": c.get("description"),
                 "aliases": c.get("aliases") or [],
+                "section": c.get("section"),
+                "human_curated": c.get("human_curated"),
+                "radius_methodology": c.get("radius_methodology"),
+                "countries_covered": c.get("countries_covered") or [],
+                "default_start": c.get("default_start"),
                 "exempt_city_limit": bool(c.get("exempt_city_limit", True)),
                 "place_count": len(places),
                 "places": [
@@ -347,6 +390,7 @@ def get_clusters():
                     }
                     for p in places
                 ],
+                "study_sites": sites_for_cluster_places(places) if places else [],
             }
         )
     return {
@@ -355,6 +399,20 @@ def get_clusters():
         "max_places_per_request": data.get("max_cluster_places") or MAX_PLACES_PER_REQUEST,
         "clusters": clusters_out,
     }
+
+
+@app.get("/study-areas/gulf")
+def get_gulf_study_areas():
+    """Frozen Gulf/Hormuz port study areas (user-request)."""
+    data = load_gulf_study_areas()
+    return {"status": "success", **data}
+
+
+@app.get("/study-areas/conflict-strikes")
+def get_conflict_strike_areas():
+    """Automated GDELT strike sites (may be empty until build script runs)."""
+    data = load_strike_sites()
+    return {"status": "success", **data}
 
 
 @app.get("/suggest")
@@ -426,8 +484,29 @@ def fetch_city_data(request: CityRequest, http_request: Request):
                 detail="Start date must be before end date"
             )
         
-        # Cache-first: try DB lookup before any network geocoding
-        cached_city = db.get_city_by_name(request.city, request.country)
+        # Frozen study-area registry (Gulf ports, GDELT sites) — no geocoding invention
+        study_site = resolve_study_area(request.city, request.country)
+        if study_site:
+            city_info = study_area_to_city_info(study_site, request.city)
+            try:
+                db.add_city(
+                    {
+                        "name": request.city,
+                        "country": city_info["country"],
+                        "lat": city_info["lat"],
+                        "lon": city_info["lon"],
+                        "radius_km": city_info["radius_km"],
+                        "display_name": city_info.get("display_name", ""),
+                        "osm_id": str(city_info.get("osm_id") or ""),
+                        "place_type": city_info.get("place_type") or "study_area",
+                    }
+                )
+            except Exception as e:
+                print(f"Warning: failed to write study area to cache DB: {e}")
+            cached_city = db.get_city_by_name(request.city, request.country)
+        else:
+            cached_city = db.get_city_by_name(request.city, request.country)
+
         city_info = None
         if cached_city:
             cache_hit = True
@@ -441,7 +520,15 @@ def fetch_city_data(request: CityRequest, http_request: Request):
                 "osm_id": cached_city.get("osm_id") or "",
                 "place_type": cached_city.get("place_type") or "city",
             }
-        else:
+            if study_site:
+                city_info["radius_rationale"] = study_site.get("radius_rationale") or study_site.get(
+                    "registry_radius_methodology"
+                )
+                city_info["study_area_id"] = study_site.get("id")
+                city_info["human_curated"] = study_site.get("human_curated")
+        elif study_site:
+            city_info = study_area_to_city_info(study_site, request.city)
+        elif not study_site:
             upstream = "osm+viirs"
             if not _acquire_network_slot():
                 raise HTTPException(status_code=503, detail="Server is busy. Try again in a moment.")
@@ -791,98 +878,23 @@ def fetch_multi_place_data(request: MultiPlaceRequest, http_request: Request):
         city_name = place.city
         country_name = place.country
         try:
-            cached_city = db.get_city_by_name(city_name, country_name)
-            city_info = None
-            viirs_data = []
-
-            if cached_city:
-                city_info = {
-                    "city": cached_city["name"],
-                    "country": cached_city["country"],
-                    "lat": cached_city["latitude"],
-                    "lon": cached_city["longitude"],
-                    "radius_km": cached_city.get("radius_km") or 10.0,
-                    "display_name": cached_city.get("display_name") or "",
-                    "osm_id": cached_city.get("osm_id") or "",
-                    "place_type": cached_city.get("place_type") or "city",
-                }
-                cached_rows = db.get_viirs_data(
-                    city_id=cached_city["id"],
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-                min_cf_cvg = float(os.getenv("MIN_CF_CVG", "5"))
-                viirs_data = [
-                    {
-                        "date": r["date"],
-                        "city": r.get("city_name") or city_info["city"],
-                        "country": r.get("country") or city_info["country"],
-                        "latitude": r.get("latitude") or city_info["lat"],
-                        "longitude": r.get("longitude") or city_info["lon"],
-                        "radiance": None
-                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
-                        else r["radiance"],
-                        "radiance_corrected": None
-                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
-                        else r["radiance_corrected"],
-                        "cloud_free_coverage": r.get("cloud_free_coverage"),
-                        "data_quality": "low"
-                        if (r.get("cloud_free_coverage") is not None and r.get("cloud_free_coverage") < min_cf_cvg)
-                        else "ok",
-                    }
-                    for r in cached_rows
-                ]
-
-            if not viirs_data:
-                if not _acquire_network_slot():
-                    errors.append(
-                        {"city": city_name, "country": country_name, "error": "Server is busy. Try again in a moment."}
-                    )
-                    continue
-                try:
-                    city_info = osm_service.geocode_city(city_name, country_name)
-                finally:
-                    _release_network_slot()
-                if not city_info:
-                    errors.append({"city": city_name, "country": country_name, "error": "Place not found"})
-                    continue
-
-                if not _acquire_network_slot():
-                    errors.append(
-                        {"city": city_name, "country": country_name, "error": "Server is busy. Try again in a moment."}
-                    )
-                    continue
-                try:
-                    viirs_data = viirs_service.fetch_viirs_for_city(
-                        city_name=city_info["city"],
-                        lat=city_info["lat"],
-                        lon=city_info["lon"],
-                        radius_km=city_info["radius_km"],
-                        start_date=start_date,
-                        end_date=end_date,
-                    )
-                finally:
-                    _release_network_slot()
-
-                try:
-                    city_id = db.add_city(
-                        {
-                            "name": city_name,
-                            "country": city_info["country"],
-                            "lat": city_info["lat"],
-                            "lon": city_info["lon"],
-                            "radius_km": city_info["radius_km"],
-                            "display_name": city_info.get("display_name", ""),
-                            "osm_id": str(city_info.get("osm_id", "")),
-                            "place_type": city_info.get("place_type", "city"),
-                        }
-                    )
-                    db.add_viirs_data(city_id, viirs_data)
-                except Exception:
-                    pass
-
-            for point in viirs_data:
-                point["country"] = city_info["country"]
+            city_info, viirs_data, _cache_hit, err = fetch_viirs_for_place(
+                city_name,
+                country_name,
+                start_date,
+                end_date,
+                db,
+                osm_service,
+                viirs_service,
+                acquire_network=_acquire_network_slot,
+                release_network=_release_network_slot,
+            )
+            if err:
+                errors.append({"city": city_name, "country": country_name, "error": err})
+                continue
+            if not city_info:
+                errors.append({"city": city_name, "country": country_name, "error": "Place not found"})
+                continue
 
             results.append(city_info)
             all_data.extend(viirs_data)

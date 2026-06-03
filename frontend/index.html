@@ -57,20 +57,32 @@
                     <button class="quick-city-btn" data-city="Chennai" data-country="India">Chennai</button>
                     <button class="quick-city-btn" data-city="Tiruppur" data-country="India">Tiruppur</button>
                 </div>
-                <div class="quick-add-cities quick-add-clusters" style="margin-top: 8px;">
-                    <span class="quick-add-label">Ports:</span>
-                    <button type="button" class="quick-cluster-btn" data-cluster="ports-china">China</button>
-                    <button type="button" class="quick-cluster-btn" data-cluster="ports-india">India</button>
-                    <button type="button" class="quick-cluster-btn" data-cluster="ports-us">US</button>
-                    <button type="button" class="quick-cluster-btn" data-cluster="ports-europe">Europe</button>
+                <div id="preset-sections" class="preset-sections" aria-live="polite">
+                    <p class="preset-sections-loading">Loading preset clusters…</p>
                 </div>
-                <div class="quick-add-cities quick-add-clusters" style="margin-top: 6px;">
-                    <span class="quick-add-label">Industrial:</span>
-                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-china">China</button>
-                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-india">India</button>
-                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-us">US</button>
-                    <button type="button" class="quick-cluster-btn" data-cluster="industrial-europe">Europe</button>
+                <div id="gdelt-disclosure-banner" class="gdelt-disclosure-banner" hidden></div>
+                <div id="cluster-radius-panel" class="cluster-radius-panel" hidden>
+                    <h4 id="cluster-radius-title">Analysis area (radius)</h4>
+                    <p id="cluster-radius-methodology" class="cluster-radius-methodology"></p>
+                    <div id="cluster-radius-table-wrap"></div>
                 </div>
+                <details class="general-presets-details">
+                    <summary>General presets (ports / industrial)</summary>
+                    <div class="quick-add-cities quick-add-clusters" style="margin-top: 8px;">
+                        <span class="quick-add-label">Ports:</span>
+                        <button type="button" class="quick-cluster-btn" data-cluster="ports-china">China</button>
+                        <button type="button" class="quick-cluster-btn" data-cluster="ports-india">India</button>
+                        <button type="button" class="quick-cluster-btn" data-cluster="ports-us">US</button>
+                        <button type="button" class="quick-cluster-btn" data-cluster="ports-europe">Europe</button>
+                    </div>
+                    <div class="quick-add-cities quick-add-clusters" style="margin-top: 6px;">
+                        <span class="quick-add-label">Industrial:</span>
+                        <button type="button" class="quick-cluster-btn" data-cluster="industrial-china">China</button>
+                        <button type="button" class="quick-cluster-btn" data-cluster="industrial-india">India</button>
+                        <button type="button" class="quick-cluster-btn" data-cluster="industrial-us">US</button>
+                        <button type="button" class="quick-cluster-btn" data-cluster="industrial-europe">Europe</button>
+                    </div>
+                </details>
             </div>
             
             <div class="date-controls">

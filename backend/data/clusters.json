@@ -1,7 +1,73 @@
 {
-  "version": 1,
+  "version": 2,
   "max_cluster_places": 12,
   "clusters": [
+    {
+      "id": "ports-gulf-hormuz-a",
+      "section": "user-request",
+      "label": "Gulf ports (Hormuz A)",
+      "description": "User-request curated Gulf / Hormuz study — west corridor (UAE, Oman, W Iran). Jan 2026+ suggested.",
+      "human_curated": true,
+      "radius_methodology": "Each port uses a manually assigned radius_km (3–6 km) in gulf_study_areas.json. Centers are frozen coordinates near the terminal. The map shows a circle; VIIRS averages pixels in a square box ±radius_km (~750 m pixels). Not statutory port boundaries.",
+      "aliases": ["hormuz a", "gulf ports a", "gulf hormuz west", "user-request gulf"],
+      "exempt_city_limit": true,
+      "default_start": "2026-01",
+      "places": [
+        { "city": "Fujairah oil terminal", "country": "United Arab Emirates" },
+        { "city": "Jebel Ali", "country": "United Arab Emirates" },
+        { "city": "Khalifa Port", "country": "United Arab Emirates" },
+        { "city": "Khor Fakkan", "country": "United Arab Emirates" },
+        { "city": "Port of Sohar", "country": "Oman" },
+        { "city": "Port of Duqm", "country": "Oman" },
+        { "city": "Bandar Abbas", "country": "Iran" },
+        { "city": "Shahid Rajaee Port", "country": "Iran" }
+      ]
+    },
+    {
+      "id": "ports-gulf-hormuz-b",
+      "section": "user-request",
+      "label": "Gulf ports (Hormuz B)",
+      "description": "User-request curated Gulf / Hormuz study — east / outbound (Qatar, Saudi, Iraq, Pakistan, Chabahar).",
+      "human_curated": true,
+      "radius_methodology": "Each port uses a manually assigned radius_km (3–6 km) in gulf_study_areas.json. Centers are frozen coordinates near the terminal. The map shows a circle; VIIRS averages pixels in a square box ±radius_km (~750 m pixels). Not statutory port boundaries.",
+      "aliases": ["hormuz b", "gulf ports b", "gulf hormuz east", "user-request gulf b"],
+      "exempt_city_limit": true,
+      "default_start": "2026-01",
+      "places": [
+        { "city": "Qeshm", "country": "Iran" },
+        { "city": "Mesaieed", "country": "Qatar" },
+        { "city": "Ras Laffan", "country": "Qatar" },
+        { "city": "Ras Tanura", "country": "Saudi Arabia" },
+        { "city": "Jubail Industrial Port", "country": "Saudi Arabia" },
+        { "city": "Umm Qasr", "country": "Iraq" },
+        { "city": "Gwadar Port", "country": "Pakistan" },
+        { "city": "Chabahar Port", "country": "Iran" }
+      ]
+    },
+    {
+      "id": "missile-hit-here",
+      "section": "gdelt-missile",
+      "label": "Missile / artillery impacts",
+      "description": "NOT human-curated. Automated from GDELT Cloud conflict events (2021–present). Verify independently before citing.",
+      "human_curated": false,
+      "radius_methodology": "radius_km from GDELT geo_precision: 1→2.0 km, 2→2.5 km. VIIRS monthly ~750 m pixels averaged in square ±radius_km. Coordinates are news geocodes, not verified impact points.",
+      "countries_covered": [],
+      "aliases": ["missile strikes", "artillery", "gdelt missile"],
+      "exempt_city_limit": true,
+      "places": []
+    },
+    {
+      "id": "drone-strike-sites",
+      "section": "gdelt-drone",
+      "label": "Air / drone impacts",
+      "description": "NOT human-curated. Automated GDELT air/drone strike events. For exploration only.",
+      "human_curated": false,
+      "radius_methodology": "radius_km from GDELT geo_precision: 1→2.0 km, 2→2.5 km. VIIRS monthly ~750 m pixels averaged in square ±radius_km. Coordinates are news geocodes, not verified impact points.",
+      "countries_covered": [],
+      "aliases": ["drone strikes", "air strikes", "gdelt drone"],
+      "exempt_city_limit": true,
+      "places": []
+    },
     {
       "id": "ports-china",
       "label": "Ports of China",

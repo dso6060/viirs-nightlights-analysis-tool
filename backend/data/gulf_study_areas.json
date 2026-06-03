@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "human_curated": true,
+  "source": "User-request — Gulf / Hormuz port study",
+  "disclaimer": "Terminal-centered coordinates for orientation only; not statutory port boundaries. Radii are manually assigned — not derived from official port limits.",
+  "radius_methodology": "Each site has a fixed lat/lon near the petroleum terminal (reference: OpenStreetMap / public port listings, frozen in this file). radius_km is chosen manually (3–6 km) to approximate quay + tank-farm night lighting at VIIRS ~750 m resolution — smaller ports use tighter radii; large LNG/crude complexes use wider radii. The map shows a circle; the backend averages pixels in a square bounding box ±radius_km around the center (see methodology page).",
+  "default_start": "2026-01",
+  "sites": [
+    {
+      "id": "fujairah-oil",
+      "label": "Fujairah oil terminal",
+      "country": "United Arab Emirates",
+      "lat": 25.116,
+      "lon": 56.356,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: major bunkering / storage complex spread along coast; ~5 VIIRS pixels across diameter at 750 m.",
+      "notes": "Crude/refined storage, bunkering; Hormuz alternative outlet"
+    },
+    {
+      "id": "jebel-ali",
+      "label": "Jebel Ali",
+      "country": "United Arab Emirates",
+      "lat": 25.026,
+      "lon": 55.052,
+      "radius_km": 5.0,
+      "radius_rationale": "5 km: large container + liquid bulk port; avoids diluting with all of Dubai metro while covering main basin.",
+      "notes": "Liquid cargo, petroleum logistics, transshipment"
+    },
+    {
+      "id": "khalifa-port",
+      "label": "Khalifa Port",
+      "country": "United Arab Emirates",
+      "lat": 24.82,
+      "lon": 54.65,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: industrial port with liquid bulk berths; KIZAD adjacency kept partial.",
+      "notes": "Liquid bulk and industrial cargo"
+    },
+    {
+      "id": "khor-fakkan",
+      "label": "Khor Fakkan",
+      "country": "United Arab Emirates",
+      "lat": 25.34,
+      "lon": 56.36,
+      "radius_km": 3.5,
+      "radius_rationale": "3.5 km: compact transshipment hub on east coast; tighter to limit mountain hinterland pixels.",
+      "notes": "Strategic transshipment / diversion point"
+    },
+    {
+      "id": "sohar",
+      "label": "Port of Sohar",
+      "country": "Oman",
+      "lat": 24.47,
+      "lon": 56.63,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: industrial port + refinery belt along Sohar waterfront.",
+      "notes": "Oil/petrochemical, bunkering"
+    },
+    {
+      "id": "duqm",
+      "label": "Port of Duqm",
+      "country": "Oman",
+      "lat": 19.66,
+      "lon": 57.7,
+      "radius_km": 5.0,
+      "radius_rationale": "5 km: greenfield deep-water port with refinery/logistics zone; facilities spaced along coast.",
+      "notes": "Refinery-linked cargo, energy logistics"
+    },
+    {
+      "id": "bandar-abbas",
+      "label": "Bandar Abbas",
+      "country": "Iran",
+      "lat": 27.18,
+      "lon": 56.28,
+      "radius_km": 5.0,
+      "radius_rationale": "5 km: main Hormuz gateway city-port; covers Shahid Rajaee vicinity without full urban sprawl.",
+      "notes": "Main Gulf gateway on Hormuz corridor"
+    },
+    {
+      "id": "shahid-rajaee",
+      "label": "Shahid Rajaee Port",
+      "country": "Iran",
+      "lat": 27.15,
+      "lon": 56.08,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: container + liquid terminal complex west of Bandar Abbas center.",
+      "notes": "Container and liquid cargo; Bandar Abbas complex"
+    },
+    {
+      "id": "qeshm",
+      "label": "Qeshm",
+      "country": "Iran",
+      "lat": 26.95,
+      "lon": 56.27,
+      "radius_km": 3.5,
+      "radius_rationale": "3.5 km: island port facilities clustered near Qeshm town / Salakh coast.",
+      "notes": "Petroleum-linked maritime movements"
+    },
+    {
+      "id": "mesaieed",
+      "label": "Mesaieed",
+      "country": "Qatar",
+      "lat": 24.99,
+      "lon": 51.55,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: industrial port + petrochemical zone south of Doha.",
+      "notes": "LNG and petroleum-linked industrial exports"
+    },
+    {
+      "id": "ras-laffan",
+      "label": "Ras Laffan",
+      "country": "Qatar",
+      "lat": 25.92,
+      "lon": 51.61,
+      "radius_km": 5.0,
+      "radius_rationale": "5 km: world's largest LNG export complex; flare/stack lighting spread along coast.",
+      "notes": "LNG export terminal"
+    },
+    {
+      "id": "ras-tanura",
+      "label": "Ras Tanura",
+      "country": "Saudi Arabia",
+      "lat": 26.64,
+      "lon": 50.16,
+      "radius_km": 5.0,
+      "radius_rationale": "5 km: major crude export terminal; offshore loading + tank farms.",
+      "notes": "Major crude oil export terminal"
+    },
+    {
+      "id": "jubail",
+      "label": "Jubail Industrial Port",
+      "country": "Saudi Arabia",
+      "lat": 27.02,
+      "lon": 49.66,
+      "radius_km": 5.0,
+      "radius_rationale": "5 km: large industrial port / petrochemical cluster on Gulf coast.",
+      "notes": "Petrochemicals and refined products"
+    },
+    {
+      "id": "umm-qasr",
+      "label": "Umm Qasr",
+      "country": "Iraq",
+      "lat": 30.034,
+      "lon": 47.929,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: Basra area oil terminal + port infrastructure at river mouth.",
+      "notes": "Basra area crude and petroleum cargo"
+    },
+    {
+      "id": "gwadar",
+      "label": "Gwadar Port",
+      "country": "Pakistan",
+      "lat": 25.113,
+      "lon": 62.339,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: deep-water port basin on Arabian Sea (outside Hormuz).",
+      "notes": "Arabian Sea outlet; Hormuz-risk alternative"
+    },
+    {
+      "id": "chabahar",
+      "label": "Chabahar Port",
+      "country": "Iran",
+      "lat": 25.295,
+      "lon": 60.63,
+      "radius_km": 4.0,
+      "radius_rationale": "4 km: Gulf of Oman port outside Strait of Hormuz.",
+      "notes": "Bulk and energy handling; outside Hormuz"
+    }
+  ]
+}

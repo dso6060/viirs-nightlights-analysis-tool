@@ -11,7 +11,7 @@ import { DataExport } from './data-export.js';
 class VIIRSApp {
     constructor() {
         // Use /api/ path for Docker/Nginx, or localhost:8000 for local dev
-        this.API_BASE_URL = window.location.hostname === 'localhost' ? 
+        this.API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ?
             'http://localhost:8000' : '/api';
         this.data = null;
         this.cityInfo = null;
@@ -200,6 +200,9 @@ class VIIRSApp {
             const response = await fetch(`${this.API_BASE_URL}/clusters`);
             if (!response.ok) {
                 console.warn('Place clusters unavailable:', response.status);
+                this.showPresetSectionsError(
+                    `Preset clusters unavailable (HTTP ${response.status}). Start backend: cd backend && python3 main.py`
+                );
                 return;
             }
             const data = await response.json();
@@ -211,9 +214,211 @@ class VIIRSApp {
                 this.maxPlacesPerRequest = data.max_places_per_request;
             }
             console.log(`Loaded ${this.placeClusters.length} place clusters`);
+            this.renderPresetSections();
         } catch (error) {
             console.warn('Failed to load place clusters:', error);
+            this.showPresetSectionsError(
+                'Could not load preset clusters. Is the API running on http://localhost:8000 ? (Use http://localhost:8090 if CORS blocks 127.0.0.1.)'
+            );
         }
+    }
+
+    showPresetSectionsError(message) {
+        const root = document.getElementById('preset-sections');
+        if (!root) return;
+        root.innerHTML = `<p class="preset-sections-error">${this.escapeHtml(message)}</p>`;
+    }
+
+    clustersBySection(sectionId) {
+        return this.placeClusters.filter((c) => c.section === sectionId);
+    }
+
+    generalPresetClusters() {
+        return this.placeClusters.filter((c) => !c.section);
+    }
+
+    renderPresetSections() {
+        const root = document.getElementById('preset-sections');
+        if (!root) return;
+        root.innerHTML = '';
+
+        const sections = [
+            {
+                id: 'user-request',
+                title: '1. User-request — Gulf / Hormuz ports',
+                subtitle: 'Hand-curated terminal coordinates & radii (see panel below when selected).',
+            },
+            {
+                id: 'gdelt-missile',
+                title: '2. GDELT missile / artillery impacts',
+                subtitle: 'Automated from GDELT — not human-curated.',
+            },
+            {
+                id: 'gdelt-drone',
+                title: '3. GDELT air / drone impacts',
+                subtitle: 'Automated from GDELT — not human-curated.',
+            },
+        ];
+
+        for (const sec of sections) {
+            const clusters = this.clustersBySection(sec.id);
+            if (!clusters.length) continue;
+
+            const block = document.createElement('div');
+            block.className = 'preset-section-block';
+            block.dataset.section = sec.id;
+
+            const h = document.createElement('div');
+            h.className = 'preset-section-header';
+            h.innerHTML = `<strong>${sec.title}</strong><span class="preset-section-sub">${sec.subtitle}</span>`;
+            block.appendChild(h);
+
+            const row = document.createElement('div');
+            row.className = 'quick-add-cities quick-add-clusters preset-cluster-row';
+
+            for (const cluster of clusters) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'quick-cluster-btn';
+                btn.dataset.cluster = cluster.id;
+                const count = cluster.place_count || (cluster.places || []).length;
+                btn.textContent = cluster.label;
+                btn.title = cluster.description || cluster.label;
+                if (count === 0) {
+                    btn.disabled = true;
+                    btn.title = 'No sites loaded — run scripts/build_conflict_strike_sites.py with GDELT_CLOUD_API_KEY';
+                }
+                row.appendChild(btn);
+
+                const pills = (cluster.countries_covered || []).filter(Boolean);
+                if (pills.length) {
+                    const pillWrap = document.createElement('span');
+                    pillWrap.className = 'country-pills';
+                    pillWrap.textContent = pills.join(' · ');
+                    row.appendChild(pillWrap);
+                }
+            }
+            block.appendChild(row);
+            root.appendChild(block);
+        }
+
+        root.querySelectorAll('.quick-cluster-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                const clusterId = e.target.dataset.cluster;
+                if (clusterId) this.addClusterToSelection(clusterId);
+            });
+        });
+    }
+
+    applyClusterDefaultDates(cluster) {
+        const startYear = document.getElementById('start-year');
+        const startMonth = document.getElementById('start-month');
+        const endYear = document.getElementById('end-year');
+        const endMonth = document.getElementById('end-month');
+
+        const isGdelt = cluster.section === 'gdelt-missile' || cluster.section === 'gdelt-drone';
+        if (isGdelt && cluster.study_sites?.length) {
+            let earliest = null;
+            for (const site of cluster.study_sites) {
+                if (!site.event_date) continue;
+                const d = new Date(`${site.event_date}T00:00:00`);
+                if (!Number.isNaN(d.getTime()) && (!earliest || d < earliest)) {
+                    earliest = d;
+                }
+            }
+            if (earliest) {
+                const start = new Date(earliest);
+                start.setMonth(start.getMonth() - 6);
+                const y = String(start.getFullYear());
+                const m = String(start.getMonth() + 1).padStart(2, '0');
+                if (startYear?.querySelector(`option[value="${y}"]`)) startYear.value = y;
+                if (startMonth) startMonth.value = m;
+            }
+            if (this.latestYear && endYear && endMonth) {
+                const ey = String(this.latestYear);
+                const em = String(this.latestMonth).padStart(2, '0');
+                if (endYear.querySelector(`option[value="${ey}"]`)) endYear.value = ey;
+                endMonth.value = em;
+            }
+            return;
+        }
+
+        if (!cluster?.default_start) return;
+        const [y, m] = String(cluster.default_start).split('-');
+        if (y && startYear?.querySelector(`option[value="${y}"]`)) {
+            startYear.value = y;
+        }
+        if (m && startMonth) {
+            startMonth.value = m.padStart(2, '0');
+        }
+        if (this.latestYear && endYear && endMonth) {
+            const ey = String(this.latestYear);
+            const em = String(this.latestMonth).padStart(2, '0');
+            if (endYear.querySelector(`option[value="${ey}"]`)) endYear.value = ey;
+            endMonth.value = em;
+        }
+    }
+
+    updateClusterInfoPanels(cluster) {
+        const panel = document.getElementById('cluster-radius-panel');
+        const banner = document.getElementById('gdelt-disclosure-banner');
+        if (!cluster) {
+            if (panel) panel.hidden = true;
+            if (banner) banner.hidden = true;
+            return;
+        }
+
+        const isGdelt = cluster.section === 'gdelt-missile' || cluster.section === 'gdelt-drone';
+        if (banner) {
+            if (isGdelt) {
+                banner.hidden = false;
+                banner.textContent =
+                    'Strike locations are automatically pulled from GDELT news events — not human-curated or battlefield-verified. Do not cite as confirmed impact coordinates.';
+            } else {
+                banner.hidden = true;
+                banner.textContent = '';
+            }
+        }
+
+        if (panel) {
+            panel.hidden = false;
+            const title = document.getElementById('cluster-radius-title');
+            const methodology = document.getElementById('cluster-radius-methodology');
+            const wrap = document.getElementById('cluster-radius-table-wrap');
+            if (title) title.textContent = `How radius (km) was set — ${cluster.label}`;
+            if (methodology) {
+                methodology.textContent =
+                    cluster.radius_methodology ||
+                    'Each place uses a fixed radius_km around a center point. VIIRS monthly pixels (~750 m) are averaged in a square box ±radius km (map shows a circle for orientation).';
+            }
+            if (wrap) {
+                const sites = cluster.study_sites || [];
+                if (!sites.length) {
+                    wrap.innerHTML = '<p class="cluster-radius-empty">No per-site radius detail available for this cluster.</p>';
+                } else {
+                    const rows = sites
+                        .map(
+                            (s) => `<tr>
+              <td>${this.escapeHtml(s.label || '')}</td>
+              <td>${this.escapeHtml(s.country || '')}</td>
+              <td><strong>${s.radius_km != null ? s.radius_km : '—'}</strong></td>
+              <td class="radius-rationale-cell">${this.escapeHtml(s.radius_rationale || '—')}</td>
+            </tr>`
+                        )
+                        .join('');
+                    wrap.innerHTML = `<table class="cluster-radius-table">
+            <thead><tr><th>Place</th><th>Country</th><th>Radius (km)</th><th>How it was set</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+                }
+            }
+        }
+    }
+
+    escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
     }
 
     searchClusters(query, limit = 3) {
@@ -474,6 +679,14 @@ class VIIRSApp {
             return;
         }
 
+        const placeList = cluster.places || [];
+        if (placeList.length === 0) {
+            this.showError(
+                'This cluster has no sites yet. For GDELT clusters, run scripts/build_conflict_strike_sites.py with GDELT_CLOUD_API_KEY.'
+            );
+            return;
+        }
+
         if (this.activeCluster && this.activeCluster.id !== clusterId) {
             this.showError('Remove the current cluster before adding another');
             return;
@@ -497,7 +710,14 @@ class VIIRSApp {
         }
 
         this.selectedCities = members;
-        this.activeCluster = { id: cluster.id, label: cluster.label };
+        this.activeCluster = {
+            id: cluster.id,
+            label: cluster.label,
+            section: cluster.section,
+            human_curated: cluster.human_curated,
+        };
+        this.applyClusterDefaultDates(cluster);
+        this.updateClusterInfoPanels(cluster);
         this.renderSelectedCities();
         this.hideError();
     }
@@ -582,6 +802,7 @@ class VIIRSApp {
         this.selectedCities = this.selectedCities.filter((p) => this.placeKey(p) !== placeKey);
         if (removed?.clusterId && !this.selectedCities.some((p) => p.clusterId === removed.clusterId)) {
             this.activeCluster = null;
+            this.updateClusterInfoPanels(null);
         }
         this.renderSelectedCities();
     }
@@ -589,6 +810,7 @@ class VIIRSApp {
     removeActiveCluster() {
         this.selectedCities = [];
         this.activeCluster = null;
+        this.updateClusterInfoPanels(null);
         this.renderSelectedCities();
     }
 
@@ -704,6 +926,19 @@ class VIIRSApp {
             this.hideLoading();
             
             if (result.status === 'success') {
+                if (!result.data || result.data.length === 0) {
+                    const errDetail = result.errors?.length
+                        ? result.errors.map((e) => `${e.city}: ${e.error}`).join('; ')
+                        : null;
+                    this.showError(
+                        errDetail ||
+                            'No VIIRS data returned for this date range. Local dev: copy backend/.env.example → backend/.env, set VIIRS_SOURCE=gee plus GEE_PROJECT_ID and GOOGLE_APPLICATION_CREDENTIALS (see docs/GEE_SETUP.md), then restart the API.'
+                    );
+                    if (this.mapViz) {
+                        this.mapViz.setCalibrating(false);
+                    }
+                    return;
+                }
                 this.hideError();
                 this.processData(result);
                 this.showVisualizations();

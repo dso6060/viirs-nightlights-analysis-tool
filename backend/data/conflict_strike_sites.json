@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "source": "GDELT Cloud conflict events",
+  "human_curated": false,
+  "generated_at": null,
+  "disclaimer": "AUTOMATED LIST — not humanly curated or battlefield-verified. Coordinates are news-derived geocodes. False positives, duplicates, and mislocations are expected.",
+  "radius_methodology": "radius_km is assigned automatically from GDELT geo_precision when build_conflict_strike_sites.py runs: precision 1 → 2.0 km, precision 2 → 2.5 km (precision 3 events are excluded). VIIRS monthly composites (~750 m) are averaged in a square box ±radius_km around the reported coordinate. This is not a verified impact footprint.",
+  "countries_filter": [
+    "Ukraine",
+    "Russia",
+    "Israel",
+    "Palestine",
+    "Lebanon",
+    "Yemen",
+    "Iran",
+    "Iraq",
+    "United Arab Emirates",
+    "Saudi Arabia",
+    "Oman",
+    "Pakistan",
+    "India"
+  ],
+  "sites": []
+}

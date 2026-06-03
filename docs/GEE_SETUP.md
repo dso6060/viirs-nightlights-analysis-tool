@@ -74,18 +74,37 @@ Reference (roles + guidance):
 
 ## Step 5) Configure environment variables for this repo
 
-Create `backend/.env` (or export these env vars in your shell):
+**Do not commit** `backend/.env`, service-account JSON files, or anything under `backend/.local-secrets/`.
+
+### Option A — Your own GEE project (recommended for forks / new contributors)
+
+Create `backend/.env` from `backend/.env.example`:
 
 ```bash
-# Choose the data source
+cp backend/.env.example backend/.env
+# Edit backend/.env with your project ID and key path
+```
+
+```bash
 export VIIRS_SOURCE=gee
-
-# Your Cloud project ID (the one you registered for Earth Engine)
 export GEE_PROJECT_ID="YOUR_PROJECT_ID"
-
-# Path to the downloaded service account JSON key
 export GOOGLE_APPLICATION_CREDENTIALS="/absolute/path/to/your-service-account-key.json"
 ```
+
+### Option B — Friedso team local dev (existing production project)
+
+If you maintain friedso production, copy the **service account JSON** from the server to a **gitignored** local path (example):
+
+```bash
+mkdir -p backend/.local-secrets
+# From your machine (replace host if needed):
+scp root@YOUR_SERVER:/etc/viirs/gee-viirs.json backend/.local-secrets/gee-viirs.json
+chmod 600 backend/.local-secrets/gee-viirs.json
+```
+
+Set `GEE_PROJECT_ID` to the same value as `/etc/viirs/nightlights-prod.env` on the server (never paste the key or project into git).
+
+Start the API from `backend/` so `backend/.env` is loaded (or export the same variables in your shell).
 
 Notes:
 

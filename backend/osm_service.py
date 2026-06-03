@@ -9,6 +9,8 @@ import time
 from typing import Dict, List, Optional
 from urllib.parse import quote
 
+from place_names import build_display_name, english_country, pick_english_name
+
 
 class OSMService:
     """
@@ -31,6 +33,17 @@ class OSMService:
         """
         self.user_agent = user_agent
         self.last_request_time = 0
+
+    def _headers(self) -> Dict[str, str]:
+        return {
+            "User-Agent": self.user_agent,
+            "Accept-Language": "en",
+        }
+
+    def _with_language(self, params: Dict) -> Dict:
+        params = dict(params)
+        params["accept-language"] = "en"
+        return params
     
     def _rate_limit(self):
         """Enforce Nominatim rate limit (1 req/sec)."""
@@ -78,16 +91,15 @@ class OSMService:
             query = city
         
         # Request parameters
-        params = {
+        params = self._with_language({
             "q": query,
             "format": "json",
             "limit": 1,
-            "addressdetails": 1
-        }
+            "addressdetails": 1,
+            "namedetails": 1,
+        })
         
-        headers = {
-            "User-Agent": self.user_agent
-        }
+        headers = self._headers()
         
         try:
             response = requests.get(
@@ -107,22 +119,25 @@ class OSMService:
             
             # Extract location info
             address = result.get("address", {})
+            namedetails = result.get("namedetails") or {}
             
-            # Determine country
-            country_name = (
-                address.get("country") or
-                country or
-                "Unknown"
+            # Determine country (English)
+            country_name = english_country(
+                country
+                or address.get("country")
+                or "Unknown"
             )
             
-            # Determine city name
-            city_name = (
+            # Determine city name (English / user query)
+            osm_city = (
                 address.get("city") or
                 address.get("town") or
                 address.get("village") or
                 address.get("municipality") or
+                result.get("name") or
                 city
             )
+            city_name = pick_english_name(city, osm_city, namedetails)
             
             # Calculate appropriate radius based on place type
             place_type = result.get("type", "city")
@@ -131,7 +146,7 @@ class OSMService:
             return {
                 "city": city_name,
                 "country": country_name,
-                "display_name": result.get("display_name", f"{city_name}, {country_name}"),
+                "display_name": build_display_name(city_name, country_name),
                 "lat": float(result["lat"]),
                 "lon": float(result["lon"]),
                 "radius_km": radius_km,
@@ -160,17 +175,16 @@ class OSMService:
         """
         self._rate_limit()
         
-        params = {
+        params = self._with_language({
             "q": query,
             "format": "json",
             "limit": limit,
             "addressdetails": 1,
-            "featuretype": "city"
-        }
+            "namedetails": 1,
+            "featuretype": "city",
+        })
         
-        headers = {
-            "User-Agent": self.user_agent
-        }
+        headers = self._headers()
         
         try:
             response = requests.get(
@@ -187,20 +201,21 @@ class OSMService:
             cities = []
             for result in results:
                 address = result.get("address", {})
+                namedetails = result.get("namedetails") or {}
                 
-                city_name = (
+                osm_city = (
                     address.get("city") or
                     address.get("town") or
                     address.get("village") or
                     result.get("name")
                 )
-                
-                country = address.get("country", "Unknown")
+                city_name = pick_english_name(None, osm_city, namedetails)
+                country = english_country(address.get("country", "Unknown"))
                 
                 cities.append({
                     "city": city_name,
                     "country": country,
-                    "display_name": result.get("display_name"),
+                    "display_name": build_display_name(city_name, country),
                     "lat": float(result["lat"]),
                     "lon": float(result["lon"])
                 })
@@ -228,16 +243,15 @@ class OSMService:
         """
         self._rate_limit()
         
-        params = {
+        params = self._with_language({
             "lat": lat,
             "lon": lon,
             "format": "json",
-            "addressdetails": 1
-        }
+            "addressdetails": 1,
+            "namedetails": 1,
+        })
         
-        headers = {
-            "User-Agent": self.user_agent
-        }
+        headers = self._headers()
         
         try:
             response = requests.get(
@@ -254,21 +268,22 @@ class OSMService:
                 return None
             
             address = result.get("address", {})
+            namedetails = result.get("namedetails") or {}
             
-            city_name = (
+            osm_city = (
                 address.get("city") or
                 address.get("town") or
                 address.get("village") or
                 address.get("municipality") or
                 "Unknown Location"
             )
-            
-            country = address.get("country", "Unknown")
+            city_name = pick_english_name(None, osm_city, namedetails)
+            country = english_country(address.get("country", "Unknown"))
             
             return {
                 "city": city_name,
                 "country": country,
-                "display_name": result.get("display_name"),
+                "display_name": build_display_name(city_name, country),
                 "lat": lat,
                 "lon": lon
             }

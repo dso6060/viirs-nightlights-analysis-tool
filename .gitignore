@@ -38,6 +38,12 @@ Thumbs.db
 # Cursor / local IDE state
 .cursor/
 
+# Secrets (never commit)
+backend/.env
+backend/.local-secrets/
+**/*-service-account*.json
+**/gee-viirs.json
+
 # Generated hotlist (build via scripts/build_hotlist.py)
 backend/data/hotlist.json
 

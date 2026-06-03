@@ -15,11 +15,20 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import requests
+
+_LATIN_RE = re.compile(r"^[\x00-\x7F\u00C0-\u024F\u1E00-\u1EFF\s\-\.'(),]+$")
+
+
+def _is_latin_text(text: Optional[str]) -> bool:
+    if not text or not str(text).strip():
+        return False
+    return bool(_LATIN_RE.match(str(text).strip()))
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -154,6 +163,10 @@ def manual_additions() -> List[Place]:
 
     # A few explicit ambiguous names with alias seeds to improve disambiguation labels
     seeds.append({"name": "Gaza", "country": "Palestine", "place_type": "city", "tags": ["ambiguous_name"], "aliases": ["Gaza City"]})
+    seeds.append({"name": "Ramallah", "country": "Palestine", "place_type": "city", "tags": ["conflict_region"]})
+    seeds.append({"name": "Hebron", "country": "Palestine", "place_type": "city", "tags": ["conflict_region"]})
+    seeds.append({"name": "Nablus", "country": "Palestine", "place_type": "city", "tags": ["conflict_region"]})
+    seeds.append({"name": "Jerusalem", "country": "Palestine", "place_type": "city", "tags": ["ambiguous_name"], "aliases": ["East Jerusalem"]})
 
     # Port metros (labels only; coords will come from project list / Natural Earth)
     ports = [
@@ -216,6 +229,36 @@ def manual_additions() -> List[Place]:
     return out
 
 
+def load_explicit_english_places() -> List[Place]:
+    """Fixed English names + coords for conflict/ambiguous regions (always in hotlist)."""
+    rows = [
+        ("Gaza", "Palestine", 31.5017, 34.4668, "city"),
+        ("Ramallah", "Palestine", 31.9038, 35.2034, "city"),
+        ("Hebron", "Palestine", 31.5326, 35.0998, "city"),
+        ("Nablus", "Palestine", 32.2211, 35.2544, "city"),
+        ("Jerusalem", "Palestine", 31.7683, 35.2137, "city"),
+        ("Jerusalem", "Israel", 31.7683, 35.2137, "city"),
+        ("Tel Aviv", "Israel", 32.0853, 34.7818, "city"),
+        ("Beirut", "Lebanon", 33.8938, 35.5018, "city"),
+        ("Damascus", "Syria", 33.5138, 36.2765, "city"),
+        ("Sanaa", "Yemen", 15.3694, 44.1910, "city"),
+        ("Kyiv", "Ukraine", 50.4501, 30.5234, "city"),
+        ("Odesa", "Ukraine", 46.4825, 30.7233, "port_city"),
+    ]
+    return [
+        Place(
+            name=name,
+            country=country,
+            lat=lat,
+            lon=lon,
+            place_type=ptype,
+            tags=["english_explicit"],
+            source="manual_explicit",
+        )
+        for name, country, lat, lon, ptype in rows
+    ]
+
+
 def fetch_naturalearth_places(limit: int = 700) -> List[Place]:
     resp = requests.get(NE_GEOJSON_URL, timeout=60)
     resp.raise_for_status()
@@ -242,10 +285,23 @@ def fetch_naturalearth_places(limit: int = 700) -> List[Place]:
         latf = _clamp(latf, -90, 90)
         lonf = _clamp(lonf, -180, 180)
 
-        name = props.get("name") or props.get("NAME")
+        name = (
+            props.get("nameascii")
+            or props.get("NAMEASCII")
+            or props.get("name_en")
+            or props.get("NAME_EN")
+            or props.get("name")
+            or props.get("NAME")
+        )
         country = props.get("adm0name") or props.get("ADM0NAME") or props.get("sov0name")
         admin1 = props.get("adm1name") or props.get("ADM1NAME")
         if not name or not country:
+            continue
+        name = str(name).strip()
+        country = str(country).strip()
+        if not _is_latin_text(name):
+            continue
+        if not _is_latin_text(country):
             continue
 
         pop = props.get("pop_max") or props.get("POP_MAX") or 0
@@ -355,7 +411,7 @@ def main() -> int:
     # Pull more than target_size from Natural Earth so we can dedupe
     # and still land near HOTLIST_SIZE after merges.
     ne = fetch_naturalearth_places(limit=max(ne_limit, target_size * 2))
-    places = merge_places(project, ne, manual, target_size=target_size)
+    places = merge_places(load_explicit_english_places(), project, ne, manual, target_size=target_size)
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     payload = {
