@@ -12,8 +12,8 @@
       "aliases": ["hormuz a", "gulf ports a", "gulf hormuz west", "user-request gulf"],
       "exempt_city_limit": true,
       "lock_date_range": true,
-      "analysis_years": 3,
-      "default_start": "2023-01",
+      "baseline_year": "2024",
+      "default_start": "2024-01",
       "places": [
         { "city": "Fujairah oil terminal", "country": "United Arab Emirates" },
         { "city": "Jebel Ali", "country": "United Arab Emirates" },
@@ -35,8 +35,8 @@
       "aliases": ["hormuz b", "gulf ports b", "gulf hormuz east", "user-request gulf b"],
       "exempt_city_limit": true,
       "lock_date_range": true,
-      "analysis_years": 3,
-      "default_start": "2023-01",
+      "baseline_year": "2024",
+      "default_start": "2024-01",
       "places": [
         { "city": "Qeshm", "country": "Iran" },
         { "city": "Mesaieed", "country": "Qatar" },
@@ -59,7 +59,7 @@
       "aliases": ["missile strikes", "artillery", "gdelt missile"],
       "exempt_city_limit": true,
       "lock_date_range": true,
-      "analysis_years": 3,
+      "baseline_year": "2024",
       "places": []
     },
     {
@@ -73,7 +73,7 @@
       "aliases": ["drone strikes", "air strikes", "gdelt drone"],
       "exempt_city_limit": true,
       "lock_date_range": true,
-      "analysis_years": 3,
+      "baseline_year": "2024",
       "places": []
     },
     {

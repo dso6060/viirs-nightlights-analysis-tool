@@ -9,7 +9,8 @@ import { GraphVisualization } from './graph-visualization.js';
 import { DataExport } from './data-export.js';
 import {
     MOM_CHANGE_THRESHOLD_PCT,
-    SEASONAL_BASELINE_YEARS,
+    PRESET_BASELINE_YEAR,
+    PRESET_RANGE_START,
     isPresetClusterSection,
 } from './viirs-config.js';
 
@@ -29,7 +30,8 @@ class VIIRSApp {
         this.searchTimeout = null; // For debouncing search
         this.hotlistPlaces = []; // ~800 preloaded places for instant suggest
         this.placeClusters = []; // e.g. Ports of China / India
-        this.activeCluster = null; // { id, label } when a cluster is loaded
+        this.activeCluster = null; // { id, label, section } when a cluster is loaded
+        this.baselineReferenceYear = null; // e.g. '2024' for preset clusters
         this.maxIndividualCities = 5;
         this.maxPlacesPerRequest = 12;
         this.autocompleteResults = [];
@@ -330,8 +332,9 @@ class VIIRSApp {
         }
 
         if (preset && this.latestYear) {
-            const yearsBack = cluster?.analysis_years || SEASONAL_BASELINE_YEARS;
-            let startY = this.latestYear - yearsBack;
+            const baselineYear = String(cluster?.baseline_year || PRESET_BASELINE_YEAR);
+            this.baselineReferenceYear = baselineYear;
+            let startY = parseInt(baselineYear, 10);
             let startM = '01';
 
             if (cluster.section === 'gdelt-missile' || cluster.section === 'gdelt-drone') {
@@ -346,14 +349,18 @@ class VIIRSApp {
                 if (earliest) {
                     const evStart = new Date(earliest);
                     evStart.setMonth(evStart.getMonth() - 6);
-                    const floor = new Date(this.latestYear, (this.latestMonth || 1) - 1, 1);
-                    floor.setFullYear(floor.getFullYear() - yearsBack);
-                    const use = evStart < floor ? floor : evStart;
+                    const floorY = parseInt(baselineYear, 10);
+                    const use =
+                        evStart.getFullYear() < floorY ||
+                        (evStart.getFullYear() === floorY && evStart.getMonth() < 0)
+                            ? new Date(floorY, 0, 1)
+                            : evStart;
                     startY = use.getFullYear();
                     startM = String(use.getMonth() + 1).padStart(2, '0');
                 }
-            } else if (cluster.default_start) {
-                const [y, m] = String(cluster.default_start).split('-');
+            } else {
+                const ds = cluster.default_start || PRESET_RANGE_START;
+                const [y, m] = String(ds).split('-');
                 if (y) startY = parseInt(y, 10);
                 if (m) startM = m.padStart(2, '0');
             }
@@ -363,10 +370,12 @@ class VIIRSApp {
 
             this.setDateControlsLocked(
                 true,
-                `Fixed range for this preset (${yearsBack}+ years for seasonal baseline, ±${MOM_CHANGE_THRESHOLD_PCT}% change bands).`
+                `Fixed range: ${startM}/${startY} → latest. % change vs same month in ${baselineYear} (±${MOM_CHANGE_THRESHOLD_PCT}% bands).`
             );
             return;
         }
+
+        this.baselineReferenceYear = null;
 
         if (cluster?.default_start) {
             const [y, m] = String(cluster.default_start).split('-');
@@ -833,6 +842,7 @@ class VIIRSApp {
         this.selectedCities = this.selectedCities.filter((p) => this.placeKey(p) !== placeKey);
         if (removed?.clusterId && !this.selectedCities.some((p) => p.clusterId === removed.clusterId)) {
             this.activeCluster = null;
+            this.baselineReferenceYear = null;
             this.updateClusterInfoPanels(null);
             this.setDateControlsLocked(false);
         }
@@ -842,6 +852,7 @@ class VIIRSApp {
     removeActiveCluster() {
         this.selectedCities = [];
         this.activeCluster = null;
+        this.baselineReferenceYear = null;
         this.updateClusterInfoPanels(null);
         this.setDateControlsLocked(false);
         this.renderSelectedCities();
@@ -1017,9 +1028,10 @@ class VIIRSApp {
     }
     
     calculatePercentageChanges() {
-        const useSeasonalBaseline =
-            this.activeCluster && isPresetClusterSection(this.activeCluster.section);
-        const minBaselineYears = SEASONAL_BASELINE_YEARS;
+        const presetBaselineYear =
+            this.activeCluster && isPresetClusterSection(this.activeCluster.section)
+                ? String(this.baselineReferenceYear || PRESET_BASELINE_YEAR)
+                : null;
 
         const cityGroups = {};
 
@@ -1032,64 +1044,24 @@ class VIIRSApp {
             cityGroups[cityKey].push(point);
         });
 
-        Object.values(cityGroups).forEach((cityData) => {
-            cityData.sort((a, b) => a.date.localeCompare(b.date));
-
-            if (useSeasonalBaseline) {
-                cityData.forEach((point) => {
-                    const [year, month] = point.date.split('-');
-                    const priorMonths = cityData.filter((p) => {
-                        if (p.radiance_corrected == null) return false;
-                        const [y, m] = p.date.split('-');
-                        return m === month && y < year;
-                    });
-                    const priorYears = new Set(
-                        priorMonths.map((p) => p.date.split('-')[0])
-                    );
-                    if (priorYears.size < minBaselineYears) {
-                        point.percentage_change = null;
-                        point.percentage_change_ready = false;
-                        point.is_baseline_year = false;
-                        return;
-                    }
-                    const baseline =
-                        priorMonths.reduce((s, p) => s + p.radiance_corrected, 0) /
-                        priorMonths.length;
-                    if (baseline > 0) {
-                        point.percentage_change =
-                            ((point.radiance_corrected - baseline) / baseline) * 100;
-                        point.percentage_change_ready = true;
-                        point.is_baseline_year = false;
-                    } else {
-                        point.percentage_change = null;
-                        point.percentage_change_ready = false;
-                        point.is_baseline_year = false;
-                    }
-                });
-                return;
-            }
-
-            const firstYear = cityData[0].date.split('-')[0];
+        const applyBaselineYear = (cityData, baselineYear) => {
             const baselineByMonth = {};
-
             cityData.forEach((point) => {
                 const [year, month] = point.date.split('-');
-                if (year === firstYear) {
+                if (year === baselineYear) {
                     baselineByMonth[month] = point.radiance_corrected;
                 }
             });
 
             cityData.forEach((point) => {
                 const [year, month] = point.date.split('-');
-                const baseline = baselineByMonth[month];
-
-                if (year === firstYear) {
+                if (year === baselineYear) {
                     point.percentage_change = null;
                     point.percentage_change_ready = false;
                     point.is_baseline_year = true;
                     return;
                 }
-
+                const baseline = baselineByMonth[month];
                 if (baseline && baseline > 0) {
                     point.percentage_change =
                         ((point.radiance_corrected - baseline) / baseline) * 100;
@@ -1101,6 +1073,18 @@ class VIIRSApp {
                     point.is_baseline_year = false;
                 }
             });
+        };
+
+        Object.values(cityGroups).forEach((cityData) => {
+            cityData.sort((a, b) => a.date.localeCompare(b.date));
+
+            if (presetBaselineYear) {
+                applyBaselineYear(cityData, presetBaselineYear);
+                return;
+            }
+
+            const firstYear = cityData[0].date.split('-')[0];
+            applyBaselineYear(cityData, firstYear);
         });
     }
     

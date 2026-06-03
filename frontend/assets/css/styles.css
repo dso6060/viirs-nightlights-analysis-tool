@@ -294,6 +294,14 @@ header .data-source {
     pointer-events: auto;
 }
 
+.leaflet-interactive.headlight-glow {
+    filter: blur(1.5px);
+}
+
+.headlight-glow.headlight-change {
+    filter: blur(2px);
+}
+
 .playback-data-hint {
     margin-top: 6px;
     padding: 6px 10px;

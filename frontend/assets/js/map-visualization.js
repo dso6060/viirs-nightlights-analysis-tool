@@ -532,42 +532,26 @@ export class MapVisualization {
                 ? Math.min(maxSize, minSize + refRadiance * 2) / 2
                 : 7;
 
-        let marker;
         let color = '#9e9e9e';
         let labelText = `${this.cityDisplayName(point)}${this.formatPercentageLabelSuffix(point)}`;
         let labelClass = 'city-label-text';
+        let marker;
 
         if (point.data_missing) {
-            marker = L.circleMarker([point.latitude, point.longitude], {
-                radius: normalizedSize,
-                color: '#bdbdbd',
-                fillColor: '#757575',
-                fillOpacity: 0.2,
-                weight: 2,
-                dashArray: '4, 3',
-                className: 'static-radiance-circle missing-month',
-            });
+            color = '#757575';
             labelClass = 'city-label-text city-label-missing';
+            marker = this.createHeadlightGlow(point, normalizedSize, color, 0.2, 'headlight-missing');
+        } else if (point.is_baseline_year) {
+            color = '#90a4ae';
+            labelClass = 'city-label-text city-label-baseline';
+            marker = this.createHeadlightGlow(point, normalizedSize, color, 0.35, 'headlight-baseline');
         } else if (point.percentage_change_ready && point.percentage_change != null) {
             color = this.getPercentageChangeColor(point.percentage_change);
-            marker = L.circleMarker([point.latitude, point.longitude], {
-                radius: normalizedSize,
-                color: '#ffffff',
-                fillColor: color,
-                fillOpacity: 0.85,
-                weight: 2,
-                className: 'static-radiance-circle change-colored',
-            });
+            marker = this.createHeadlightGlow(point, normalizedSize, color, 0.55, 'headlight-change');
         } else {
-            color = this.getRadianceColor(point.radiance_corrected);
-            marker = L.circleMarker([point.latitude, point.longitude], {
-                radius: normalizedSize,
-                color: '#ffffff',
-                fillColor: color,
-                fillOpacity: 0.8,
-                weight: 2,
-                className: 'static-radiance-circle',
-            });
+            color = '#b0bec5';
+            labelClass = 'city-label-text city-label-neutral';
+            marker = this.createHeadlightGlow(point, normalizedSize, color, 0.3, 'headlight-neutral');
         }
 
         const { latDelta, lonDelta, anchorX, anchorY } = this.getLabelOffset(point.city, point.country);
@@ -621,6 +605,33 @@ export class MapVisualization {
         `);
         
         return markerGroup;
+    }
+
+    /**
+     * Soft stacked glow (cartoon headlight) instead of a sharp dot.
+     */
+    createHeadlightGlow(point, coreRadius, fillColor, coreOpacity, extraClass) {
+        const group = L.layerGroup();
+        const lat = point.latitude;
+        const lon = point.longitude;
+        const layers = [
+            { r: coreRadius * 2.8, opacity: coreOpacity * 0.12, stroke: 0 },
+            { r: coreRadius * 1.9, opacity: coreOpacity * 0.28, stroke: 0 },
+            { r: coreRadius * 1.25, opacity: coreOpacity * 0.5, stroke: 1, strokeColor: 'rgba(255,255,255,0.35)' },
+            { r: coreRadius * 0.65, opacity: Math.min(0.95, coreOpacity + 0.35), stroke: 1, strokeColor: 'rgba(255,255,255,0.7)' },
+        ];
+        layers.forEach((layer, i) => {
+            const cm = L.circleMarker([lat, lon], {
+                radius: layer.r,
+                color: layer.strokeColor || 'transparent',
+                weight: layer.stroke || 0,
+                fillColor: i === layers.length - 1 ? '#fffef8' : fillColor,
+                fillOpacity: layer.opacity,
+                className: `headlight-glow ${extraClass}`,
+            });
+            group.addLayer(cm);
+        });
+        return group;
     }
 
     getLabelOffset(city, country) {
@@ -680,7 +691,7 @@ export class MapVisualization {
         } else if (percentage < -t) {
             return '#f44336'; // red (decrease)
         } else {
-            return '#ff9800'; // orange (stable)
+            return '#ffeb3b'; // yellow (stable within ±threshold)
         }
     }
 }
