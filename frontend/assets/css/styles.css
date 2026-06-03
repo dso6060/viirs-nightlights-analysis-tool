@@ -490,6 +490,24 @@ header .data-source {
     margin-bottom: 20px;
 }
 
+.date-controls-locked .month-select,
+.date-controls-locked .year-select {
+    opacity: 0.65;
+    cursor: not-allowed;
+    background: #f0f0f0;
+}
+
+.date-range-locked-note {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    color: #555;
+    background: #fff8e6;
+    border: 1px solid #f0d080;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 0 0 4px;
+}
+
 .date-group {
     display: flex;
     flex-direction: column;

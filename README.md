@@ -131,9 +131,9 @@ New York
 - **Calculation**: `((current - baseline) / baseline) × 100`
 - **Baseline**: First year in selected range (same month)
 - **Color Coding**:
-  - 🟢 Green (+5%+): Significant increase
-  - 🟡 Yellow (-5% to +5%): Stable
-  - 🔴 Red (-5%-): Significant decrease
+  - 🟢 Green (+40%+): Large increase vs baseline
+  - 🟡 Yellow (-40% to +40%): Stable (typical seasonality)
+  - 🔴 Red (-40%-): Large decrease (e.g. conflict / outage)
 
 #### Missing / null months (data quality)
 

@@ -380,6 +380,8 @@ def get_clusters():
                 "radius_methodology": c.get("radius_methodology"),
                 "countries_covered": c.get("countries_covered") or [],
                 "default_start": c.get("default_start"),
+                "lock_date_range": bool(c.get("lock_date_range")),
+                "analysis_years": c.get("analysis_years"),
                 "exempt_city_limit": bool(c.get("exempt_city_limit", True)),
                 "place_count": len(places),
                 "places": [

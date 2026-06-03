@@ -4,7 +4,7 @@
   "source": "User-request — Gulf / Hormuz port study",
   "disclaimer": "Terminal-centered coordinates for orientation only; not statutory port boundaries. Radii are manually assigned — not derived from official port limits.",
   "radius_methodology": "Each site has a fixed lat/lon near the petroleum terminal (reference: OpenStreetMap / public port listings, frozen in this file). radius_km is chosen manually (3–6 km) to approximate quay + tank-farm night lighting at VIIRS ~750 m resolution — smaller ports use tighter radii; large LNG/crude complexes use wider radii. The map shows a circle; the backend averages pixels in a square bounding box ±radius_km around the center (see methodology page).",
-  "default_start": "2026-01",
+  "default_start": "2023-01",
   "sites": [
     {
       "id": "fujairah-oil",

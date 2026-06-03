@@ -4,6 +4,8 @@
  * Handles interactive map display with VIIRS data visualization.
  */
 
+import { MOM_CHANGE_THRESHOLD_PCT } from './viirs-config.js';
+
 export class MapVisualization {
     constructor(containerId) {
         this.containerId = containerId;
@@ -546,6 +548,16 @@ export class MapVisualization {
                 className: 'static-radiance-circle missing-month',
             });
             labelClass = 'city-label-text city-label-missing';
+        } else if (point.percentage_change_ready && point.percentage_change != null) {
+            color = this.getPercentageChangeColor(point.percentage_change);
+            marker = L.circleMarker([point.latitude, point.longitude], {
+                radius: normalizedSize,
+                color: '#ffffff',
+                fillColor: color,
+                fillOpacity: 0.85,
+                weight: 2,
+                className: 'static-radiance-circle change-colored',
+            });
         } else {
             color = this.getRadianceColor(point.radiance_corrected);
             marker = L.circleMarker([point.latitude, point.longitude], {
@@ -662,9 +674,10 @@ export class MapVisualization {
     }
     
     getPercentageChangeColor(percentage) {
-        if (percentage > 5) {
+        const t = MOM_CHANGE_THRESHOLD_PCT;
+        if (percentage > t) {
             return '#4caf50'; // green (increase)
-        } else if (percentage < -5) {
+        } else if (percentage < -t) {
             return '#f44336'; // red (decrease)
         } else {
             return '#ff9800'; // orange (stable)

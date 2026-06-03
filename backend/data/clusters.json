@@ -11,7 +11,9 @@
       "radius_methodology": "Each port uses a manually assigned radius_km (3–6 km) in gulf_study_areas.json. Centers are frozen coordinates near the terminal. The map shows a circle; VIIRS averages pixels in a square box ±radius_km (~750 m pixels). Not statutory port boundaries.",
       "aliases": ["hormuz a", "gulf ports a", "gulf hormuz west", "user-request gulf"],
       "exempt_city_limit": true,
-      "default_start": "2026-01",
+      "lock_date_range": true,
+      "analysis_years": 3,
+      "default_start": "2023-01",
       "places": [
         { "city": "Fujairah oil terminal", "country": "United Arab Emirates" },
         { "city": "Jebel Ali", "country": "United Arab Emirates" },
@@ -32,7 +34,9 @@
       "radius_methodology": "Each port uses a manually assigned radius_km (3–6 km) in gulf_study_areas.json. Centers are frozen coordinates near the terminal. The map shows a circle; VIIRS averages pixels in a square box ±radius_km (~750 m pixels). Not statutory port boundaries.",
       "aliases": ["hormuz b", "gulf ports b", "gulf hormuz east", "user-request gulf b"],
       "exempt_city_limit": true,
-      "default_start": "2026-01",
+      "lock_date_range": true,
+      "analysis_years": 3,
+      "default_start": "2023-01",
       "places": [
         { "city": "Qeshm", "country": "Iran" },
         { "city": "Mesaieed", "country": "Qatar" },
@@ -54,6 +58,8 @@
       "countries_covered": [],
       "aliases": ["missile strikes", "artillery", "gdelt missile"],
       "exempt_city_limit": true,
+      "lock_date_range": true,
+      "analysis_years": 3,
       "places": []
     },
     {
@@ -66,6 +72,8 @@
       "countries_covered": [],
       "aliases": ["drone strikes", "air strikes", "gdelt drone"],
       "exempt_city_limit": true,
+      "lock_date_range": true,
+      "analysis_years": 3,
       "places": []
     },
     {
